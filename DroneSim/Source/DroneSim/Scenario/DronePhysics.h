@@ -13,11 +13,11 @@ struct FDronePhysicsSettings
 
     /** Thrust acceleration; lower values make the drone ramp up to speed more slowly */
     UPROPERTY(EditAnywhere, Category = "Drone Physics", meta = (ClampMin = "1.0", ForceUnits = "cm/s^2"))
-    float Acceleration = 600.0f;
+    float Acceleration = 5000.0f;
 
     /** Braking deceleration while no action is active; lower values give a longer drift */
     UPROPERTY(EditAnywhere, Category = "Drone Physics", meta = (ClampMin = "0.0", ForceUnits = "cm/s^2"))
-    float BrakingDeceleration = 300.0f;
+    float BrakingDeceleration = 5000.0f;
 
     /** Ground friction during playback; lower values make direction changes looser, like a drone */
     UPROPERTY(EditAnywhere, Category = "Drone Physics", meta = (ClampMin = "0.0"))

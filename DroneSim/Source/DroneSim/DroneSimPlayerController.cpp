@@ -88,8 +88,11 @@ void ADroneSimPlayerController::ShowMenu()
         HudWidget->HideSaveResult();
     }
 
-    // recording starts via the Space bar only; no mouse input is used on this screen
-    SetInputMode(FInputModeUIOnly());
+    // recording starts via the Space bar only; no mouse input is used on this screen.
+    // The cursor is hidden but must still be locked to the viewport: otherwise moving the
+    // mouse lets the (invisible) cursor leave the game window, which drops OS input focus
+    // and stops keyboard events from reaching this widget entirely.
+    SetInputMode(FInputModeUIOnly().SetLockMouseToViewportBehavior(EMouseLockMode::LockAlways));
     SetShowMouseCursor(false);
 
     // SetWidgetToFocus on the input mode struct can silently fail to grant focus when the
