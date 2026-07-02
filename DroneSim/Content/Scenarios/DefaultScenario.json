@@ -1,0 +1,14 @@
+{
+	"steps": [
+		{ "duration": 5.0, "action": "frontward" },
+		{ "duration": 5.0, "action": "left" },
+		{ "duration": 5.0, "action": "right" },
+		{ "duration": 5.0, "action": "backward" },
+		{ "duration": 3.0, "action": "stop" },
+		{ "duration": 5.0, "action": "frontward" },
+		{ "duration": 5.0, "action": "left" },
+		{ "duration": 5.0, "action": "right" },
+		{ "duration": 5.0, "action": "backward" },
+		{ "duration": 3.0, "action": "stop" }
+	]
+}

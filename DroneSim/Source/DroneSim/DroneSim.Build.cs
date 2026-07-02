@@ -1,5 +1,3 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 using UnrealBuildTool;
 
 public class DroneSim : ModuleRules
@@ -14,30 +12,17 @@ public class DroneSim : ModuleRules
 			"Engine",
 			"InputCore",
 			"EnhancedInput",
-			"AIModule",
-			"StateTreeModule",
-			"GameplayStateTreeModule",
 			"UMG",
-			"Slate"
+			"Slate",
+			"SlateCore",
+			"Json"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"DroneSim",
-			"DroneSim/Variant_Platforming",
-			"DroneSim/Variant_Platforming/Animation",
-			"DroneSim/Variant_Combat",
-			"DroneSim/Variant_Combat/AI",
-			"DroneSim/Variant_Combat/Animation",
-			"DroneSim/Variant_Combat/Gameplay",
-			"DroneSim/Variant_Combat/Interfaces",
-			"DroneSim/Variant_Combat/UI",
-			"DroneSim/Variant_SideScrolling",
-			"DroneSim/Variant_SideScrolling/AI",
-			"DroneSim/Variant_SideScrolling/Gameplay",
-			"DroneSim/Variant_SideScrolling/Interfaces",
-			"DroneSim/Variant_SideScrolling/UI"
+			"DroneSim/Scenario"
 		});
 
 		// Uncomment if you are using Slate UI

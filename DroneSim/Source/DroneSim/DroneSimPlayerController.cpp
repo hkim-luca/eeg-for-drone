@@ -1,67 +1,195 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
-
 #include "DroneSimPlayerController.h"
-#include "EnhancedInputSubsystems.h"
-#include "Engine/LocalPlayer.h"
-#include "InputMappingContext.h"
 #include "Blueprint/UserWidget.h"
 #include "DroneSim.h"
+#include "Engine/Engine.h"
+#include "Engine/LocalPlayer.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputMappingContext.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/Paths.h"
+#include "Scenario/ScenarioHudWidget.h"
+#include "Scenario/ScenarioLog.h"
+#include "Scenario/ScenarioMenuWidget.h"
+#include "Scenario/ScenarioRunnerComponent.h"
+#include "Scenario/ScenarioTime.h"
 #include "Widgets/Input/SVirtualJoystick.h"
+
+ADroneSimPlayerController::ADroneSimPlayerController()
+{
+    ScenarioRunner = CreateDefaultSubobject<UScenarioRunnerComponent>(TEXT("ScenarioRunner"));
+}
 
 void ADroneSimPlayerController::BeginPlay()
 {
-	Super::BeginPlay();
+    Super::BeginPlay();
 
-	// only spawn touch controls on local player controllers
-	if (ShouldUseTouchControls() && IsLocalPlayerController())
-	{
-		// spawn the mobile controls widget
-		MobileControlsWidget = CreateWidget<UUserWidget>(this, MobileControlsWidgetClass);
+    // only spawn touch controls on local player controllers
+    if (ShouldUseTouchControls() && IsLocalPlayerController())
+    {
+        // spawn the mobile controls widget
+        MobileControlsWidget = CreateWidget<UUserWidget>(this, MobileControlsWidgetClass);
 
-		if (MobileControlsWidget)
-		{
-			// add the controls to the player screen
-			MobileControlsWidget->AddToPlayerScreen(0);
+        if (MobileControlsWidget)
+        {
+            // add the controls to the player screen
+            MobileControlsWidget->AddToPlayerScreen(0);
+        }
+        else
+        {
 
-		} else {
+            UE_LOG(LogDroneSim, Error, TEXT("Could not spawn mobile controls widget."));
+        }
+    }
 
-			UE_LOG(LogDroneSim, Error, TEXT("Could not spawn mobile controls widget."));
+    // show the initial scenario menu on local player controllers
+    if (IsLocalPlayerController())
+    {
+        FScenarioLog::LogSessionHeader(GetWorld());
+        FScenarioLog::Info(FString::Printf(TEXT("Controller=%s pawn=%s | resolution=%.3fs moveSpeed=%.0f"),
+                                           *GetClass()->GetName(),
+                                           GetPawn() != nullptr ? *GetPawn()->GetClass()->GetName() : TEXT("NULL"),
+                                           RecordingResolution, ScenarioMoveSpeed));
 
-		}
+        ScenarioRunner->OnScenarioFinished.AddDynamic(this, &ADroneSimPlayerController::HandleScenarioFinished);
+        ShowMenu();
 
-	}
+        // build timestamp on screen to make stale editor binaries obvious
+        if (GEngine != nullptr)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                -1, 5.0f, FColor::Cyan,
+                FString::Printf(TEXT("DroneSim Scenario ready (built %hs %hs)"), __DATE__, __TIME__));
+        }
+    }
+}
+
+void ADroneSimPlayerController::ShowMenu()
+{
+    if (MenuWidget == nullptr)
+    {
+        MenuWidget = CreateWidget<UScenarioMenuWidget>(this, MenuWidgetClass);
+
+        if (MenuWidget == nullptr)
+        {
+            FScenarioLog::Error(TEXT("Could not spawn scenario menu widget. Set MenuWidgetClass to a Widget Blueprint "
+                                     "on the player controller."));
+            return;
+        }
+
+        MenuWidget->OnRecordingRequested.AddDynamic(this, &ADroneSimPlayerController::HandleRecordingRequested);
+    }
+
+    MenuWidget->AddToViewport(1);
+    FScenarioLog::Info(TEXT("Scenario menu shown"));
+
+    // clear the previous run's save result now that the Space bar can start a new one
+    if (HudWidget != nullptr)
+    {
+        HudWidget->HideSaveResult();
+    }
+
+    // recording starts via the Space bar only; no mouse input is used on this screen
+    SetInputMode(FInputModeUIOnly());
+    SetShowMouseCursor(false);
+
+    // SetWidgetToFocus on the input mode struct can silently fail to grant focus when the
+    // mode is set outside of a Slate input event (as here, from BeginPlay); set it directly
+    // so the widget's NativeOnKeyDown receives the Space bar shortcut
+    MenuWidget->SetKeyboardFocus();
+}
+
+void ADroneSimPlayerController::HandleRecordingRequested()
+{
+    FScenarioLog::Info(TEXT("Recording requested"));
+
+    if (!FScenarioConfig::LoadConfiguredScenario(LoadedScenario))
+    {
+        FScenarioLog::Error(TEXT("Cannot start recording: no valid scenario steps."));
+        MenuWidget->ShowWarning(NSLOCTEXT("ScenarioMenu", "LoadFail", "Scenario load failed. See Output Log."));
+        return;
+    }
+
+    MenuWidget->RemoveFromParent();
+    SetInputMode(FInputModeGameOnly());
+    SetShowMouseCursor(false);
+
+    // show the current action at the top center of the screen while playing
+    HudWidget = CreateWidget<UScenarioHudWidget>(this, HudWidgetClass);
+    if (HudWidget != nullptr)
+    {
+        HudWidget->AddToViewport(10);
+        HudWidget->SetActionLabel(TEXT("WAIT"));
+        ScenarioRunner->OnActionChanged.AddDynamic(HudWidget.Get(), &UScenarioHudWidget::SetActionLabel);
+    }
+    else
+    {
+        FScenarioLog::Error(TEXT("Could not spawn scenario HUD widget. Set HudWidgetClass to a Widget Blueprint "
+                                 "on the player controller; playback continues without the HUD."));
+    }
+
+    FScenarioLog::Info(
+        FString::Printf(TEXT("Starting scenario: %s"), *FPaths::GetCleanFilename(LoadedScenario.FilePath)));
+    ScenarioRunner->Start(LoadedScenario.Steps, RecordingResolution, ScenarioMoveSpeed);
+}
+
+void ADroneSimPlayerController::HandleScenarioFinished()
+{
+    // file name: save time in KST (yyyymmdd_hhmmss) plus the scenario name
+    const FString ScenarioName = FPaths::GetBaseFilename(LoadedScenario.FilePath);
+    const FString SavedPath =
+        ScenarioRunner->SaveRecording(ScenarioTime::ToFileStampKst(ScenarioTime::NowKst()) + TEXT("_") + ScenarioName);
+
+    // show the result on the HUD, separate from the action label; on-screen debug messages do
+    // not render in Shipping builds
+    if (HudWidget != nullptr)
+    {
+        HudWidget->ShowSaveResult(
+            SavedPath.IsEmpty()
+                ? FText::FromString(TEXT("SAVE FAILED - check Saved/ScenarioLogs"))
+                : FText::FromString(FString::Printf(TEXT("SAVED: %s"), *FPaths::GetCleanFilename(SavedPath))));
+    }
+
+    // reload the current level after a short delay so the result stays readable
+    FScenarioLog::Info(TEXT("Returning to the initial screen in 3 seconds"));
+    GetWorldTimerManager().SetTimer(ReloadTimerHandle, this, &ADroneSimPlayerController::ReturnToInitialScreen, 3.0f,
+                                    false);
+}
+
+void ADroneSimPlayerController::ReturnToInitialScreen()
+{
+    UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this)));
 }
 
 void ADroneSimPlayerController::SetupInputComponent()
 {
-	Super::SetupInputComponent();
+    Super::SetupInputComponent();
 
-	// only add IMCs for local player controllers
-	if (IsLocalPlayerController())
-	{
-		// Add Input Mapping Contexts
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
-		{
-			for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
-			{
-				Subsystem->AddMappingContext(CurrentContext, 0);
-			}
+    // only add IMCs for local player controllers
+    if (IsLocalPlayerController())
+    {
+        // Add Input Mapping Contexts
+        if (UEnhancedInputLocalPlayerSubsystem *Subsystem =
+                ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+        {
+            for (UInputMappingContext *CurrentContext : DefaultMappingContexts)
+            {
+                Subsystem->AddMappingContext(CurrentContext, 0);
+            }
 
-			// only add these IMCs if we're not using mobile touch input
-			if (!ShouldUseTouchControls())
-			{
-				for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
-				{
-					Subsystem->AddMappingContext(CurrentContext, 0);
-				}
-			}
-		}
-	}
+            // only add these IMCs if we're not using mobile touch input
+            if (!ShouldUseTouchControls())
+            {
+                for (UInputMappingContext *CurrentContext : MobileExcludedMappingContexts)
+                {
+                    Subsystem->AddMappingContext(CurrentContext, 0);
+                }
+            }
+        }
+    }
 }
 
-bool ADroneSimPlayerController::ShouldUseTouchControls() const
+auto ADroneSimPlayerController::ShouldUseTouchControls() const -> bool
 {
-	// are we on a mobile platform? Should we force touch?
-	return SVirtualJoystick::ShouldDisplayTouchInterface() || bForceTouchControls;
+    // are we on a mobile platform? Should we force touch?
+    return SVirtualJoystick::ShouldDisplayTouchInterface() || bForceTouchControls;
 }
