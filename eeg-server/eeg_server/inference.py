@@ -1,10 +1,13 @@
 """Dummy EEG classifier implementing the fixed demo rule.
 
 DroneSim's simulated device boosts the amplitude of one channel group per
-movement action (see ``config.ACTION_GROUP_START``). This classifier computes
-the RMS of each group and picks the group that clearly dominates; when no
-group dominates, the frame is a STOP. The real AI model will replace this
-module while keeping :func:`classify_frame`'s signature.
+movement action (see ``config.ACTION_GROUP_START``). This classifier turns the
+RMS energy of each group into a probability per action with a softmax: a group
+that clearly dominates pulls the distribution toward its action, while a
+resting signal (all groups near the mean) favors STOP through a fixed bias.
+The inferred action is the argmax, so the label always matches the reported
+distribution. The real AI model will replace this module while keeping
+:func:`classify_frame`'s signature.
 """
 
 from __future__ import annotations
@@ -20,7 +23,10 @@ class InferenceResult:
     """Outcome of classifying one EEG frame."""
 
     action: str
+    #: Probability of the winning action, in [0, 1].
     confidence: float
+    #: Probability per action label, summing to ~1.
+    probabilities: dict[str, float]
 
 
 def _group_rms(data: list[float], channel_count: int, group_start: int) -> float:
@@ -38,23 +44,25 @@ def _group_rms(data: list[float], channel_count: int, group_start: int) -> float
 
 
 def classify_frame(data: list[float], channel_count: int) -> InferenceResult:
-    """Classifies one sample-major EEG frame into a scenario action label."""
+    """Classifies one sample-major EEG frame into a per-action probability distribution."""
     rms_by_action = {
         action: _group_rms(data, channel_count, start)
         for action, start in config.ACTION_GROUP_START.items()
     }
+    mean_rms = sum(rms_by_action.values()) / len(rms_by_action)
 
-    best_action = max(rms_by_action, key=lambda action: rms_by_action[action])
-    best_rms = rms_by_action[best_action]
-    other_rms = [rms for action, rms in rms_by_action.items() if action != best_action]
-    other_mean = sum(other_rms) / len(other_rms) if other_rms else 0.0
+    # normalized group energy; 1.0 = average. STOP competes with a fixed baseline so
+    # it wins whenever no movement group stands out from the rest.
+    scores = {
+        action: (rms / mean_rms if mean_rms > 0.0 else 1.0)
+        for action, rms in rms_by_action.items()
+    }
+    scores[config.STOP_ACTION] = config.STOP_BIAS
 
-    if other_mean <= 0.0 or best_rms / other_mean < config.CLASSIFY_RATIO:
-        # no group dominates: resting signal, which the demo rule maps to STOP.
-        # Confidence grows as the best group falls back toward the baseline.
-        margin = best_rms / other_mean if other_mean > 0.0 else 1.0
-        confidence = min(1.0, max(0.0, (config.CLASSIFY_RATIO - margin) / (config.CLASSIFY_RATIO - 1.0)))
-        return InferenceResult(action=config.STOP_ACTION, confidence=confidence)
+    peak = max(scores.values())  # subtracted for numerical stability
+    weights = {action: math.exp(config.SOFTMAX_SHARPNESS * (score - peak)) for action, score in scores.items()}
+    total_weight = sum(weights.values())
+    probabilities = {action: weight / total_weight for action, weight in weights.items()}
 
-    confidence = min(1.0, (best_rms / other_mean) / (config.CLASSIFY_RATIO * 2.0))
-    return InferenceResult(action=best_action, confidence=confidence)
+    action = max(probabilities, key=lambda name: probabilities[name])
+    return InferenceResult(action=action, confidence=probabilities[action], probabilities=probabilities)

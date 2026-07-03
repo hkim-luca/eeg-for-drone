@@ -41,6 +41,12 @@ inline constexpr auto GroupStartChannel(EScenarioAction Action) -> int32
     }
     return INDEX_NONE;
 }
+
+/** Wire order of ActionResult.action_probs; must match config.ACTION_PROB_ORDER on the server */
+inline constexpr EScenarioAction ProbOrder[] = {EScenarioAction::Forward, EScenarioAction::Backward,
+                                                EScenarioAction::Left, EScenarioAction::Right, EScenarioAction::Stop};
+
+inline constexpr int32 ProbCount = 5;
 } // namespace EegConfig
 
 /** One 100 ms block of simulated EEG ready to be sent to the EEG server */
@@ -75,6 +81,9 @@ struct FEegActionResult
     /** Rolling EEG command classification accuracy reported by the server, in percent;
      *  negative until the first result arrives */
     float AccuracyPercent = -1.0f;
+
+    /** Per-action probabilities in [0, 1], ordered by EegConfig::ProbOrder */
+    float ActionProbs[EegConfig::ProbCount] = {};
 };
 
 /** Parses the uppercase wire label (LEFT, RIGHT, FORWARD, BACKWARD, STOP) written by

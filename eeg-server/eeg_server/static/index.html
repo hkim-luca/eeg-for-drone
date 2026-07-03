@@ -53,6 +53,15 @@
     </article>
   </section>
 
+  <section class="tile chart-tile" aria-label="Action 확률 시계열">
+    <h2>Action 확률 (최근 30초)</h2>
+    <div class="legend" id="prob-legend"></div>
+    <div class="chart-wrap">
+      <canvas id="prob-chart"></canvas>
+      <div id="prob-tooltip" class="tooltip" hidden></div>
+    </div>
+  </section>
+
   <section class="tile chart-tile" aria-label="EEG 신호">
     <h2>EEG 신호 (32 전극, 최근 2초)</h2>
     <canvas id="waveforms"></canvas>
@@ -63,6 +72,7 @@
   <p>eeg-server dummy &middot; 데이터는 500ms 간격으로 갱신됩니다.</p>
 </footer>
 
+<script src="/probchart.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

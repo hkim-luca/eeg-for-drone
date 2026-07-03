@@ -73,15 +73,16 @@ class EegTcpServer:
         data = list(frame.data)
         result = classify_frame(data, frame.channels)
         infer_ms = now_ms()
+        probabilities = [result.probabilities[action] for action in config.ACTION_PROB_ORDER]
 
         self._state.metrics.on_frame(frame.seq, frame.true_action, result.action)
         self._state.on_frame(data, frame.channels, frame.true_action)
-        self._state.on_inference(result.action, result.confidence)
+        self._state.on_inference(result.action, result.confidence, probabilities)
 
         action_seq = self._next_action_seq
         self._next_action_seq += 1
         self._state.metrics.on_action_sent(action_seq, infer_ms, frame.t_sent_ms)
 
         writer.write(build_action_payload(action_seq, frame.seq, result.action, result.confidence, infer_ms,
-                                          self._state.metrics.accuracy_percent()))
+                                          self._state.metrics.accuracy_percent(), probabilities))
         await writer.drain()

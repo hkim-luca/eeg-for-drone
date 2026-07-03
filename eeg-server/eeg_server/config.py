@@ -31,8 +31,17 @@ ACTION_GROUP_START: Final[dict[str, int]] = {
 }
 
 # --- demo classification rule ----------------------------------------------
-#: A group must exceed the mean RMS of the other groups by this factor to win.
-CLASSIFY_RATIO: Final[float] = 1.5
+#: Wire order of ActionResult.action_probs; must match EegConfig::ProbOrder in DroneSim.
+ACTION_PROB_ORDER: Final[tuple[str, ...]] = ("FORWARD", "BACKWARD", "LEFT", "RIGHT", "STOP")
+
+#: Softmax temperature over the normalized group energies; higher = more decisive.
+SOFTMAX_SHARPNESS: Final[float] = 8.0
+
+#: Baseline score of STOP; a resting signal (all groups near the mean) maps to STOP.
+STOP_BIAS: Final[float] = 1.25
+
+#: Inference results kept for the dashboard probability time series (~30 s at 10/s).
+PROB_HISTORY_LENGTH: Final[int] = 300
 
 # --- metric windows ----------------------------------------------------------
 #: Frames kept for the rolling accuracy metric (~30 s at 10 frames/s).

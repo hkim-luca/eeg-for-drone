@@ -203,6 +203,16 @@ auto ParseActionResult(TConstArrayView<uint8> Bytes, FEegActionResult &OutResult
         case 6: // accuracy_percent
             bOk = Reader.ReadRaw(OutResult.AccuracyPercent);
             break;
+        case 7: { // action_probs (packed floats in EegConfig::ProbOrder)
+            TConstArrayView<uint8> View;
+            bOk = Reader.ReadLengthDelimited(View) && View.Num() % sizeof(float) == 0;
+            if (bOk)
+            {
+                const int32 Count = FMath::Min(static_cast<int32>(View.Num() / sizeof(float)), EegConfig::ProbCount);
+                FMemory::Memcpy(OutResult.ActionProbs, View.GetData(), Count * sizeof(float));
+            }
+            break;
+        }
         default: // eeg_seq and future fields
             bOk = Reader.SkipField(WireType);
             break;

@@ -40,6 +40,23 @@ void UEegHudWidget::NativeTick(const FGeometry &MyGeometry, float InDeltaTime)
                                               : FText::FromString(FString::Printf(TEXT("ACCURACY: %.1f%%"), Accuracy)));
     }
 
+    // per-action probability distribution of the last result, one line per action
+    if (ProbabilityText != nullptr)
+    {
+        const TConstArrayView<float> Probs = Pinned->GetLastActionProbs();
+        FString Lines;
+        for (int32 Index = 0; Index < EegConfig::ProbCount; ++Index)
+        {
+            Lines += FString::Printf(TEXT("%s %.1f%%"), *ScenarioActionName(EegConfig::ProbOrder[Index]),
+                                     Probs[Index] * 100.0f);
+            if (Index + 1 < EegConfig::ProbCount)
+            {
+                Lines += TEXT("\n");
+            }
+        }
+        ProbabilityText->SetText(FText::FromString(Lines));
+    }
+
     // ground truth comes from the simulated device; comparing it with the big inferred
     // action label shows misclassifications directly on screen
     if (StatusText != nullptr)

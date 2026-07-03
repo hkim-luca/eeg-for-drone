@@ -38,7 +38,7 @@ def test_boosted_groups_classify_to_their_action() -> None:
     for action in config.ACTION_GROUP_START:
         result = classify_frame(_make_frame(action, rng), config.CHANNEL_COUNT)
         assert result.action == action, f"expected {action}, got {result.action}"
-        assert 0.0 <= result.confidence <= 1.0
+        assert result.probabilities[action] > 0.5
 
 
 def test_flat_signal_classifies_to_stop() -> None:
@@ -47,7 +47,17 @@ def test_flat_signal_classifies_to_stop() -> None:
     assert result.action == config.STOP_ACTION
 
 
+def test_probabilities_form_a_distribution() -> None:
+    rng = random.Random(3)
+    result = classify_frame(_make_frame("LEFT", rng), config.CHANNEL_COUNT)
+    assert set(result.probabilities) == set(config.ACTION_PROB_ORDER)
+    assert abs(sum(result.probabilities.values()) - 1.0) < 1e-6
+    assert all(0.0 <= value <= 1.0 for value in result.probabilities.values())
+    assert result.confidence == result.probabilities[result.action]
+
+
 if __name__ == "__main__":
     test_boosted_groups_classify_to_their_action()
     test_flat_signal_classifies_to_stop()
+    test_probabilities_form_a_distribution()
     print("test_inference: OK")

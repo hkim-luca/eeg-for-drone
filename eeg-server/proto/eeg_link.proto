@@ -43,9 +43,13 @@ message ActionResult {
   int64 action_seq = 1;         // monotonic, echoed back in ControlAck
   int64 eeg_seq = 2;            // EegFrame.seq this result was inferred from
   string action = 3;            // LEFT, RIGHT, FORWARD, BACKWARD or STOP
-  float confidence = 4;         // classifier confidence in [0, 1]
+  float confidence = 4;         // probability of the winning action, in [0, 1]
   double t_infer_ms = 5;        // Unix epoch ms when the inference finished
   float accuracy_percent = 6;   // rolling EEG command classification accuracy
+
+  // Per-action probabilities in [0, 1] summing to ~1, in the fixed order
+  // FORWARD, BACKWARD, LEFT, RIGHT, STOP (config.ACTION_PROB_ORDER / EegConfig::ProbOrder).
+  repeated float action_probs = 7;
 }
 
 // Everything the server sends.

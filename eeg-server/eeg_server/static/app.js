@@ -132,6 +132,7 @@ async function poll() {
     renderConnection(state.connected);
     renderMetrics(state);
     drawSparkline(state.metrics.accuracy.percent);
+    drawProbChart(state.prob_order, state.prob_history);
     drawWaveforms(state.waveforms);
   } catch (error) {
     renderConnection(false);

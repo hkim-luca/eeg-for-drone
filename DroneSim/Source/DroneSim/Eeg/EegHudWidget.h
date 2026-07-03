@@ -14,6 +14,8 @@ class UTextBlock;
  *  Blueprint using this class as its parent; bindable elements (all optional):
  *   - GraphPanel (EegGraphPanel), top-right: the 32-electrode signal graphs
  *   - AccuracyText (TextBlock), top-left: rolling classification accuracy from the server
+ *   - ProbabilityText (TextBlock), top-left: per-action probabilities of the last result
+ *     (five lines: FORWARD/BACKWARD/LEFT/RIGHT/STOP %)
  *   - ConnectionText (TextBlock): EEG server link state (green CONNECTED / red RECONNECTING)
  *   - StatusText (TextBlock): ground-truth action embedded in the simulated signal
  */
@@ -37,6 +39,10 @@ class UEegHudWidget : public UUserWidget
     /** Rolling classification accuracy, top-left; designed in the Widget Blueprint */
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> AccuracyText;
+
+    /** Per-action probability lines, top-left; designed in the Widget Blueprint */
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UTextBlock> ProbabilityText;
 
     /** EEG server link state; designed in the Widget Blueprint */
     UPROPERTY(meta = (BindWidgetOptional))

@@ -48,6 +48,10 @@ class UEegRunnerComponent : public UActorComponent
      *  negative until the first action result arrives */
     auto GetLastAccuracyPercent() const -> float;
 
+    /** Per-action probabilities of the last result in [0, 1], ordered by EegConfig::ProbOrder;
+     *  all zero until the first action result arrives */
+    auto GetLastActionProbs() const -> TConstArrayView<float>;
+
     void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 
     /** Fired when the applied action label changes; labels match scenario playback */
@@ -96,6 +100,9 @@ class UEegRunnerComponent : public UActorComponent
 
     /** Rolling classification accuracy last reported by the server; negative = none yet */
     float LastAccuracyPercent = -1.0f;
+
+    /** Per-action probabilities of the last result, ordered by EegConfig::ProbOrder */
+    float LastActionProbs[EegConfig::ProbCount] = {};
 
     /** Label broadcast for the last applied action */
     FString LastActionLabel;

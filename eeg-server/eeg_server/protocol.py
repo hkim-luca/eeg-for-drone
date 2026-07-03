@@ -57,8 +57,10 @@ def build_action_payload(
     confidence: float,
     infer_ms: float,
     accuracy_percent: float,
+    probabilities: list[float],
 ) -> bytes:
-    """Serializes one framed ``ServerMessage`` carrying an ``ActionResult``."""
+    """Serializes one framed ``ServerMessage`` carrying an ``ActionResult``.
+    ``probabilities`` must follow ``config.ACTION_PROB_ORDER``."""
     message = pb.ServerMessage()
     message.action.action_seq = action_seq
     message.action.eeg_seq = eeg_seq
@@ -66,6 +68,7 @@ def build_action_payload(
     message.action.confidence = confidence
     message.action.t_infer_ms = infer_ms
     message.action.accuracy_percent = accuracy_percent
+    message.action.action_probs.extend(probabilities)
     return frame_payload(message.SerializeToString())
 
 

@@ -22,6 +22,7 @@ void UEegRunnerComponent::Start(float InMoveSpeed)
 {
     CurrentAction = EScenarioAction::Stop;
     LastAccuracyPercent = -1.0f;
+    FMemory::Memzero(LastActionProbs);
     LastActionLabel.Reset();
     PendingFrames.Reset();
     PendingAcks.Reset();
@@ -79,6 +80,11 @@ auto UEegRunnerComponent::GetSimulator() const -> const FEegSignalSimulator &
 auto UEegRunnerComponent::GetLastAccuracyPercent() const -> float
 {
     return LastAccuracyPercent;
+}
+
+auto UEegRunnerComponent::GetLastActionProbs() const -> TConstArrayView<float>
+{
+    return TConstArrayView<float>(LastActionProbs, EegConfig::ProbCount);
 }
 
 void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
@@ -151,6 +157,7 @@ void UEegRunnerComponent::HandleServerMessage(TConstArrayView<uint8> Payload)
 
     CurrentAction = Result.Action;
     LastAccuracyPercent = Result.AccuracyPercent;
+    FMemory::Memcpy(LastActionProbs, Result.ActionProbs, sizeof(LastActionProbs));
     PendingAcks.Add(Result);
 }
 

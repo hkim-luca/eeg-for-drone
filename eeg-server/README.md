@@ -35,7 +35,10 @@ python tools/fake_dronesim.py --seconds 10
 - DroneSim → 서버: `ClientMessage{ eeg: EegFrame }` (100 ms, 32ch x 25샘플),
   `ClientMessage{ ack: ControlAck }` (제어 적용 시각 확인)
 - 서버 → DroneSim: `ServerMessage{ action: ActionResult }` — 추론된 action,
-  confidence, rolling 분류 정확도(`accuracy_percent`) 포함
+  rolling 분류 정확도(`accuracy_percent`), 그리고 **action별 확률 분포**
+  (`action_probs`, FORWARD/BACKWARD/LEFT/RIGHT/STOP 고정 순서, 합≈1) 포함.
+  confidence는 승자 action의 확률과 같음. 확률 시계열은 dashboard의
+  "Action 확률" 차트에서 최근 30초 구간으로 확인
 
 Python 코드는 protoc 생성물(`eeg_server/eeg_link_pb2.py`)을 사용하고,
 UE 쪽은 `DroneSim/Source/DroneSim/Eeg/EegProto.cpp`가 같은 wire format을
@@ -51,6 +54,8 @@ python -m grpc_tools.protoc -I proto --python_out=eeg_server proto/eeg_link.prot
 
 DroneSim의 신호 시뮬레이터는 action마다 정해진 채널 그룹의 진폭을 키웁니다
 (`FORWARD`=ch0–5, `LEFT`=ch8–13, `RIGHT`=ch18–23, `BACKWARD`=ch26–31).
-서버는 그룹별 RMS를 비교해 뚜렷하게 큰 그룹의 action으로 분류하고, 없으면
-`STOP`입니다. 규칙 상수는 `eeg_server/config.py`와 UE의 `EegTypes.h`에서
-반드시 함께 맞춰야 합니다.
+서버는 그룹별 RMS를 평균으로 정규화한 뒤 softmax로 action별 확률을 만듭니다.
+`STOP`은 고정 baseline(`STOP_BIAS`)과 경쟁하므로 두드러진 그룹이 없는 휴지
+신호에서는 `STOP` 확률이 우세해집니다. 추론 action은 확률의 argmax입니다.
+규칙 상수는 `eeg_server/config.py`와 UE의 `EegTypes.h`에서 반드시 함께
+맞춰야 합니다.

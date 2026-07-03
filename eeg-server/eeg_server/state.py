@@ -30,6 +30,8 @@ class ServerState:
         self._true_action = _EMPTY_ACTION
         self._inferred_action = _EMPTY_ACTION
         self._confidence = 0.0
+        #: One entry per inference result, ordered by config.ACTION_PROB_ORDER (percent).
+        self._prob_history: Deque[list[float]] = deque(maxlen=config.PROB_HISTORY_LENGTH)
 
     def set_connected(self, connected: bool) -> None:
         with self._lock:
@@ -52,10 +54,12 @@ class ServerState:
                 for channel in range(min(channel_count, config.CHANNEL_COUNT)):
                     self._waveforms[channel].append(round(data[base + channel], 2))
 
-    def on_inference(self, action: str, confidence: float) -> None:
+    def on_inference(self, action: str, confidence: float, probabilities: list[float]) -> None:
+        """Records one result; ``probabilities`` follows ``config.ACTION_PROB_ORDER``."""
         with self._lock:
             self._inferred_action = action
             self._confidence = confidence
+            self._prob_history.append([round(100.0 * value, 2) for value in probabilities])
 
     def snapshot(self) -> dict[str, object]:
         """JSON-ready dashboard state; called from the HTTP thread."""
@@ -67,5 +71,7 @@ class ServerState:
                 "confidence": round(self._confidence, 3),
                 "sample_rate_hz": config.SAMPLE_RATE_HZ // config.GRAPH_DOWNSAMPLE,
                 "waveforms": [list(channel) for channel in self._waveforms],
+                "prob_order": list(config.ACTION_PROB_ORDER),
+                "prob_history": [list(entry) for entry in self._prob_history],
                 "metrics": self.metrics.snapshot(),
             }
