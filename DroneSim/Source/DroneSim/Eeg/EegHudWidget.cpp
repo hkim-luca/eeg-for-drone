@@ -5,6 +5,23 @@
 #include "EegGraphPanel.h"
 #include "EegRunnerComponent.h"
 #include "Styling/CoreStyle.h"
+#include "Telemetry/DroneMinimapWidget.h"
+#include "Telemetry/DroneTelemetryComponent.h"
+
+namespace
+{
+/** Formats a signed degree value as DMS with a hemisphere letter, e.g. 37°33'59.4"N */
+auto FormatDms(double Degrees, const TCHAR *PositiveHemisphere, const TCHAR *NegativeHemisphere) -> FString
+{
+    const TCHAR *Hemisphere = Degrees >= 0.0 ? PositiveHemisphere : NegativeHemisphere;
+    const double AbsDegrees = FMath::Abs(Degrees);
+    const int32 WholeDegrees = static_cast<int32>(AbsDegrees);
+    const double MinutesFloat = (AbsDegrees - WholeDegrees) * 60.0;
+    const int32 WholeMinutes = static_cast<int32>(MinutesFloat);
+    const double Seconds = (MinutesFloat - WholeMinutes) * 60.0;
+    return FString::Printf(TEXT("%d°%02d'%04.1f\"%s"), WholeDegrees, WholeMinutes, Seconds, Hemisphere);
+}
+} // namespace
 
 void UEegHudWidget::SetRunner(UEegRunnerComponent *InRunner)
 {
@@ -12,6 +29,15 @@ void UEegHudWidget::SetRunner(UEegRunnerComponent *InRunner)
     if (GraphPanel != nullptr)
     {
         GraphPanel->SetRunner(InRunner);
+    }
+}
+
+void UEegHudWidget::SetTelemetry(UDroneTelemetryComponent *InTelemetry)
+{
+    Telemetry = InTelemetry;
+    if (MinimapPanel != nullptr)
+    {
+        MinimapPanel->SetTelemetry(InTelemetry);
     }
 }
 
@@ -83,5 +109,20 @@ void UEegHudWidget::NativeTick(const FGeometry &MyGeometry, float InDeltaTime)
             ProbabilityLines[Index]->SetColorAndOpacity(
                 FSlateColor(Index == BestIndex ? ProbabilityHighlightColor : ProbabilityColor));
         }
+    }
+
+    // flight status report, bottom-left: attitude, speed and WGS84 position of the pawn
+    if (const UDroneTelemetryComponent *PinnedTelemetry = Telemetry.Get();
+        PinnedTelemetry != nullptr && StatusText != nullptr)
+    {
+        const FString Lat = FormatDms(PinnedTelemetry->GetLatitude(), TEXT("N"), TEXT("S"));
+        const FString Lon = FormatDms(PinnedTelemetry->GetLongitude(), TEXT("E"), TEXT("W"));
+
+        StatusText->SetText(FText::FromString(FString::Printf(
+            TEXT("Drone state\nALT   %.1f m\nSPD   %.1f m/s\nHDG   %.0f°\nROLL  %.1f°\nPITCH %.1f°\nYAW   "
+                 "%.1f°\nLAT   %s\nLON   %s\nALT(MSL) %.1f m"),
+            PinnedTelemetry->GetAltitudeMeters(), PinnedTelemetry->GetSpeedMps(), PinnedTelemetry->GetHeadingDeg(),
+            PinnedTelemetry->GetRollDeg(), PinnedTelemetry->GetPitchDeg(), PinnedTelemetry->GetYawDeg(), *Lat, *Lon,
+            PinnedTelemetry->GetAltitudeMslMeters())));
     }
 }

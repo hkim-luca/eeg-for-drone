@@ -5,6 +5,8 @@
 
 #include "EegHudWidget.generated.h"
 
+class UDroneMinimapWidget;
+class UDroneTelemetryComponent;
 class UEegGraphPanel;
 class UEegRunnerComponent;
 class UTextBlock;
@@ -17,6 +19,8 @@ class UVerticalBox;
  *   - ProbabilityBox (VerticalBox), top-left: filled by this class with one line per
  *     action (FORWARD/BACKWARD/LEFT/RIGHT/STOP %); the highest value is highlighted
  *   - ConnectionText (TextBlock): EEG server link state (green CONNECTED / red RECONNECTING)
+ *   - StatusText (TextBlock), bottom-left: ALT/SPD/HDG/ROLL/PITCH/YAW and WGS84 position
+ *   - MinimapPanel (DroneMinimapWidget), bottom-right: north-up flight trail minimap
  */
 UCLASS(Abstract)
 class UEegHudWidget : public UUserWidget
@@ -26,6 +30,9 @@ class UEegHudWidget : public UUserWidget
   public:
     /** Wires the graph panel and the status line to the running-mode driver */
     void SetRunner(UEegRunnerComponent *InRunner);
+
+    /** Wires the status text and minimap to the flight telemetry source */
+    void SetTelemetry(UDroneTelemetryComponent *InTelemetry);
 
     /** Font size of the generated probability lines */
     UPROPERTY(EditAnywhere, Category = "EEG")
@@ -61,6 +68,17 @@ class UEegHudWidget : public UUserWidget
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> ConnectionText;
 
+    /** Multi-line flight status report, bottom-left; designed in the Widget Blueprint */
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UTextBlock> StatusText;
+
+    /** North-up minimap of the flight trail, bottom-right; designed in the Widget Blueprint */
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UDroneMinimapWidget> MinimapPanel;
+
     /** Running-mode driver the HUD reports on */
     TWeakObjectPtr<UEegRunnerComponent> Runner;
+
+    /** Flight telemetry source the status text and minimap report on */
+    TWeakObjectPtr<UDroneTelemetryComponent> Telemetry;
 };

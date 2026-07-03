@@ -16,7 +16,6 @@
 #include "Scenario/ScenarioMenuWidget.h"
 #include "Scenario/ScenarioRunnerComponent.h"
 #include "Scenario/ScenarioTime.h"
-#include "Telemetry/DroneStatusWidget.h"
 #include "Telemetry/DroneTelemetryComponent.h"
 #include "Widgets/Input/SVirtualJoystick.h"
 
@@ -176,31 +175,19 @@ void ADroneSimPlayerController::StartEegRunningMode()
         EegRunner->OnActionChanged.AddDynamic(HudWidget.Get(), &UScenarioHudWidget::SetActionLabel);
     }
 
-    // EEG overlay: electrode graphs top-right, accuracy top-left, connection state
+    // EEG overlay: electrode graphs top-right, connection state, flight status bottom-left,
+    // flight-trail minimap bottom-right
     EegHudWidget = CreateWidget<UEegHudWidget>(this, EegHudWidgetClass);
     if (EegHudWidget != nullptr)
     {
         EegHudWidget->AddToViewport(11);
         EegHudWidget->SetRunner(EegRunner);
+        EegHudWidget->SetTelemetry(DroneTelemetry);
     }
     else
     {
         FScenarioLog::Error(TEXT("Could not spawn EEG HUD widget. Set EegHudWidgetClass to a Widget Blueprint "
                                  "on the player controller; running mode continues without graphs."));
-    }
-
-    // drone status overlay: flight state bottom-left, flight-trail minimap bottom-right
-    DroneStatusWidget = CreateWidget<UDroneStatusWidget>(this, DroneStatusWidgetClass);
-    if (DroneStatusWidget != nullptr)
-    {
-        DroneStatusWidget->AddToViewport(12);
-        DroneStatusWidget->SetTelemetry(DroneTelemetry);
-    }
-    else
-    {
-        FScenarioLog::Error(TEXT("Could not spawn drone status widget. Set DroneStatusWidgetClass to a Widget "
-                                 "Blueprint on the player controller; running mode continues without the status "
-                                 "overlay."));
     }
 
     EegRunner->Start(ScenarioMoveSpeed);
