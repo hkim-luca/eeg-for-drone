@@ -127,8 +127,9 @@ void UEegHudWidget::NativeTick(const FGeometry &MyGeometry, float InDeltaTime)
         for (int32 Index = 0; Index < ProbabilityLines.Num(); ++Index)
         {
             // zero-padded fixed width (00.0% ... 99.9%) so the lines do not jitter as values change
-            ProbabilityLines[Index]->SetText(FText::FromString(FString::Printf(
-                TEXT("%s %04.1f%%"), *ScenarioActionName(EegConfig::ProbOrder[Index]), Probs[Index] * 100.0f)));
+            ProbabilityLines[Index]->SetText(FText::FromString(
+                FString::Printf(TEXT("%s%s %04.1f%%"), ScenarioActionArrow(EegConfig::ProbOrder[Index]),
+                                *ScenarioActionName(EegConfig::ProbOrder[Index]), Probs[Index] * 100.0f)));
             ProbabilityLines[Index]->SetColorAndOpacity(
                 FSlateColor(Index == BestIndex ? ProbabilityHighlightColor : ProbabilityColor));
         }

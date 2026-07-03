@@ -90,19 +90,3 @@ struct FEegActionResult
     /** Per-action probabilities in [0, 1], ordered by EegConfig::ProbOrder */
     float ActionProbs[EegConfig::ProbCount] = {};
 };
-
-/** Parses the uppercase wire label (LEFT, RIGHT, FORWARD, BACKWARD, STOP) written by
- *  ScenarioActionName() back to the enum; returns false if the label is unknown */
-inline auto ParseScenarioActionName(const FString &Label, EScenarioAction &OutAction) -> bool
-{
-    const UEnum *Enum = StaticEnum<EScenarioAction>();
-    for (int32 Index = 0; Index < Enum->NumEnums() - 1; ++Index)
-    {
-        if (Enum->GetNameStringByIndex(Index).ToUpper() == Label)
-        {
-            OutAction = static_cast<EScenarioAction>(Enum->GetValueByIndex(Index));
-            return true;
-        }
-    }
-    return false;
-}
