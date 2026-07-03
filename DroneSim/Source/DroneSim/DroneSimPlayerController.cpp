@@ -57,15 +57,15 @@ void ADroneSimPlayerController::BeginPlay()
 
         ScenarioRunner->OnScenarioFinished.AddDynamic(this, &ADroneSimPlayerController::HandleScenarioFinished);
 
-        // the mode is a launch option: -EegRunning dedicates this run to EEG control
-        // (no menu); otherwise the scenario recording menu is shown as before
-        if (FParse::Param(FCommandLine::Get(), TEXT("EegRunning")))
+        // EEG running mode is the default; scenario collection is the secondary
+        // function, selected with the -ScenarioRecording launch option
+        if (FParse::Param(FCommandLine::Get(), TEXT("ScenarioRecording")))
         {
-            StartEegRunningMode();
+            ShowMenu();
         }
         else
         {
-            ShowMenu();
+            StartEegRunningMode();
         }
 
         // build timestamp on screen to make stale editor binaries obvious
@@ -162,7 +162,7 @@ auto ADroneSimPlayerController::CreateActionHud(const FString &InitialLabel) -> 
 
 void ADroneSimPlayerController::StartEegRunningMode()
 {
-    FScenarioLog::Info(TEXT("EEG running mode start (launched with -EegRunning)"));
+    FScenarioLog::Info(TEXT("EEG running mode start (default mode)"));
 
     // action label HUD, shared with recording mode but fed by the EEG runner
     if (CreateActionHud(TEXT("CONNECTING")))
@@ -197,8 +197,8 @@ void ADroneSimPlayerController::StartEegRunningMode()
 
 void ADroneSimPlayerController::HandleEegStopRequested()
 {
-    // reloading the level re-enters BeginPlay, which sees -EegRunning again and
-    // starts a fresh run - so the stop shortcut acts as a restart in this mode
+    // reloading the level re-enters BeginPlay, which starts EEG running mode again
+    // (the default) - so the stop shortcut acts as a restart
     FScenarioLog::Info(TEXT("EEG running mode stop requested; restarting the level"));
     EegRunner->Stop();
     ReturnToInitialScreen();

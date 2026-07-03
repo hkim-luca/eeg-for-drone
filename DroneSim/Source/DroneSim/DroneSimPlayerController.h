@@ -17,8 +17,8 @@ class UScenarioRunnerComponent;
 /**
  *  Basic PlayerController class for a third person game
  *  Manages input mappings, the scenario menu, scenario playback and EEG running mode.
- *  The mode is selected at launch: without options the scenario recording menu is
- *  shown; with -EegRunning on the command line EEG running mode starts immediately.
+ *  The mode is selected at launch: by default EEG running mode starts immediately;
+ *  the -ScenarioRecording command line option shows the scenario collection menu instead.
  */
 UCLASS(abstract)
 class ADroneSimPlayerController : public APlayerController
@@ -111,11 +111,11 @@ class ADroneSimPlayerController : public APlayerController
     UFUNCTION()
     void HandleRecordingRequested();
 
-    /** Starts EEG running mode; entered directly from BeginPlay when the game was
-     *  launched with the -EegRunning option (no menu is shown in that mode) */
+    /** Starts EEG running mode; entered directly from BeginPlay by default
+     *  (no menu is shown unless the game was launched with -ScenarioRecording) */
     void StartEegRunningMode();
 
-    /** Stops EEG running mode and reloads the level; with -EegRunning set the mode restarts fresh */
+    /** Stops EEG running mode and reloads the level, which restarts the mode fresh */
     UFUNCTION()
     void HandleEegStopRequested();
 
