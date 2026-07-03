@@ -32,6 +32,8 @@ class ServerState:
         self._confidence = 0.0
         #: One entry per inference result, ordered by config.ACTION_PROB_ORDER (percent).
         self._prob_history: Deque[list[float]] = deque(maxlen=config.PROB_HISTORY_LENGTH)
+        #: KST clock label (HH:MM:SS) of each _prob_history entry, for the chart x-axis.
+        self._prob_times: Deque[str] = deque(maxlen=config.PROB_HISTORY_LENGTH)
 
     def set_connected(self, connected: bool) -> None:
         with self._lock:
@@ -54,12 +56,14 @@ class ServerState:
                 for channel in range(min(channel_count, config.CHANNEL_COUNT)):
                     self._waveforms[channel].append(round(data[base + channel], 2))
 
-    def on_inference(self, action: str, confidence: float, probabilities: list[float]) -> None:
-        """Records one result; ``probabilities`` follows ``config.ACTION_PROB_ORDER``."""
+    def on_inference(self, action: str, confidence: float, probabilities: list[float], time_label: str) -> None:
+        """Records one result; ``probabilities`` follows ``config.ACTION_PROB_ORDER``,
+        ``time_label`` is the KST clock (HH:MM:SS) shown on the chart x-axis."""
         with self._lock:
             self._inferred_action = action
             self._confidence = confidence
             self._prob_history.append([round(100.0 * value, 2) for value in probabilities])
+            self._prob_times.append(time_label)
 
     def snapshot(self) -> dict[str, object]:
         """JSON-ready dashboard state; called from the HTTP thread."""
@@ -73,5 +77,6 @@ class ServerState:
                 "waveforms": [list(channel) for channel in self._waveforms],
                 "prob_order": list(config.ACTION_PROB_ORDER),
                 "prob_history": [list(entry) for entry in self._prob_history],
+                "prob_times": list(self._prob_times),
                 "metrics": self.metrics.snapshot(),
             }

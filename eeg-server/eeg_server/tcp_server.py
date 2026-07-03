@@ -15,6 +15,7 @@ from typing import Final
 from . import config
 from . import eeg_link_pb2 as pb
 from .inference import classify_frame
+from .metrics_log import MetricsCsvLogger, now_kst
 from .protocol import MAX_MESSAGE_BYTES, build_action_payload, now_ms, parse_client_message, read_payload
 from .state import ServerState
 
@@ -27,6 +28,7 @@ class EegTcpServer:
     def __init__(self, state: ServerState) -> None:
         self._state = state
         self._next_action_seq = 0
+        self._csv_log = MetricsCsvLogger()
 
     async def serve_forever(self) -> None:
         server = await asyncio.start_server(
@@ -73,15 +75,26 @@ class EegTcpServer:
         data = list(frame.data)
         result = classify_frame(data, frame.channels)
         infer_ms = now_ms()
+        moment = now_kst()
         probabilities = [result.probabilities[action] for action in config.ACTION_PROB_ORDER]
 
         self._state.metrics.on_frame(frame.seq, frame.true_action, result.action)
         self._state.on_frame(data, frame.channels, frame.true_action)
-        self._state.on_inference(result.action, result.confidence, probabilities)
+        self._state.on_inference(result.action, result.confidence, probabilities, moment.strftime("%H:%M:%S"))
 
         action_seq = self._next_action_seq
         self._next_action_seq += 1
         self._state.metrics.on_action_sent(action_seq, infer_ms, frame.t_sent_ms)
+
+        # persist every dashboard value as one KST-stamped time-series row
+        metrics = self._state.metrics.snapshot()
+        latency = metrics["latency_ms"]
+        reliability = metrics["reliability"]
+        self._csv_log.log_row(moment, frame.true_action, result.action, result.confidence,
+                              [100.0 * value for value in probabilities],
+                              self._state.metrics.accuracy_percent(),
+                              latency["infer_to_control"]["last"], latency["device_to_control"]["last"],
+                              reliability["frame_percent"], reliability["ack_percent"])
 
         writer.write(build_action_payload(action_seq, frame.seq, result.action, result.confidence, infer_ms,
                                           self._state.metrics.accuracy_percent(), probabilities))

@@ -76,6 +76,10 @@ function drawSparkline(percent) {
   ctx.stroke();
 }
 
+function kstTime(date) {
+  return date.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+}
+
 function drawWaveforms(waveforms) {
   const canvas = document.getElementById("waveforms");
   const width = canvas.clientWidth;
@@ -90,7 +94,20 @@ function drawWaveforms(waveforms) {
 
   const channels = waveforms.length;
   if (channels === 0) return;
-  const stripHeight = height / channels;
+
+  // KST time axis along the bottom: the window is the last 2 seconds
+  const axisHeight = 18;
+  const plotHeight = height - axisHeight;
+  const now = Date.now();
+  ctx.fillStyle = css("--text-muted");
+  ctx.font = "10px system-ui, sans-serif";
+  [[0, "left", -2000], [width / 2, "center", -1000], [width, "right", 0]].forEach(([x, align, offsetMs]) => {
+    ctx.textAlign = align;
+    ctx.fillText(`${kstTime(new Date(now + offsetMs))}`, x, height - 5);
+  });
+  ctx.textAlign = "left";
+
+  const stripHeight = plotHeight / channels;
   const amplitudeScale = (stripHeight * 0.45) / FULL_SCALE_UV;
 
   // recessive strip separators and channel labels every 4th electrode
@@ -132,7 +149,7 @@ async function poll() {
     renderConnection(state.connected);
     renderMetrics(state);
     drawSparkline(state.metrics.accuracy.percent);
-    drawProbChart(state.prob_order, state.prob_history);
+    drawProbChart(state.prob_order, state.prob_history, state.prob_times);
     drawWaveforms(state.waveforms);
   } catch (error) {
     renderConnection(false);

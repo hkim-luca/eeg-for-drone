@@ -44,3 +44,4 @@ env/
 
 # serena
 .serena
+eeg-server/logs/

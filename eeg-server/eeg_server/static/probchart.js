@@ -4,8 +4,11 @@
 
 const PROB_SERIES_VARS = ["--series-1", "--series-2", "--series-3", "--series-4", "--series-5"];
 
-let probState = { order: [], history: [] };
+let probState = { order: [], history: [], times: [] };
 let probLegendBuilt = false;
+
+const PROB_TOP_MARGIN = 12;
+const PROB_BOTTOM_MARGIN = 26; // leaves room for the KST time axis
 
 function probColor(index) {
   return getComputedStyle(document.body).getPropertyValue(PROB_SERIES_VARS[index]).trim();
@@ -26,8 +29,8 @@ function buildProbLegend(order) {
   probLegendBuilt = true;
 }
 
-function drawProbChart(order, history) {
-  probState = { order, history };
+function drawProbChart(order, history, times) {
+  probState = { order, history, times };
   if (!probLegendBuilt && order.length > 0) buildProbLegend(order);
 
   const canvas = document.getElementById("prob-chart");
@@ -40,6 +43,8 @@ function drawProbChart(order, history) {
 
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, width, height);
+  const plotHeight = height - PROB_TOP_MARGIN - PROB_BOTTOM_MARGIN;
+  const yFor = (percent) => height - PROB_BOTTOM_MARGIN - (percent / 100) * plotHeight;
 
   // recessive horizontal grid at 0/25/50/75/100%
   ctx.strokeStyle = css("--grid");
@@ -47,7 +52,7 @@ function drawProbChart(order, history) {
   ctx.font = "10px system-ui, sans-serif";
   ctx.lineWidth = 1;
   for (let percent = 0; percent <= 100; percent += 25) {
-    const y = Math.round(height - 12 - (percent / 100) * (height - 24)) - 0.5;
+    const y = Math.round(yFor(percent)) - 0.5;
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(width, y);
@@ -60,13 +65,24 @@ function drawProbChart(order, history) {
   const stepX = width / (capacity - 1);
   const offset = capacity - history.length;
 
+  // KST time axis: up to four ticks spread over the visible samples
+  ctx.fillStyle = css("--text-muted");
+  ctx.textAlign = "center";
+  const tickCount = Math.min(4, times.length);
+  for (let tick = 0; tick < tickCount; tick += 1) {
+    const index = Math.round(tick * (times.length - 1) / Math.max(1, tickCount - 1));
+    const x = Math.min(Math.max((offset + index) * stepX, 24), width - 24);
+    ctx.fillText(times[index], x, height - 8);
+  }
+  ctx.textAlign = "left";
+
   order.forEach((action, series) => {
     ctx.strokeStyle = probColor(series);
     ctx.lineWidth = 2;
     ctx.beginPath();
     history.forEach((entry, index) => {
       const x = (offset + index) * stepX;
-      const y = height - 12 - (entry[series] / 100) * (height - 24);
+      const y = yFor(entry[series]);
       if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
     ctx.stroke();
@@ -78,7 +94,7 @@ function initProbTooltip() {
   const tooltip = document.getElementById("prob-tooltip");
 
   canvas.addEventListener("mousemove", (event) => {
-    const { order, history } = probState;
+    const { order, history, times } = probState;
     if (history.length < 2) { tooltip.hidden = true; return; }
 
     const rect = canvas.getBoundingClientRect();
@@ -90,6 +106,7 @@ function initProbTooltip() {
     const rows = order.map((action, series) =>
       `<div class="row"><span class="legend-chip" style="background:${probColor(series)}"></span>` +
       `${action}<span class="val">${history[index][series].toFixed(1)}%</span></div>`);
+    rows.unshift(`<div class="row">${times[index] ?? ""} KST</div>`);
     tooltip.innerHTML = rows.join("");
     tooltip.hidden = false;
     const x = Math.min(event.clientX - rect.left + 12, rect.width - tooltip.offsetWidth - 4);

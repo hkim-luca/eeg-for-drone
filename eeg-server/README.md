@@ -15,7 +15,11 @@ python -m eeg_server
 
 - DroneSim 링크: `tcp://127.0.0.1:9800` (length-prefixed protobuf, `proto/eeg_link.proto`)
 - Dashboard: <http://127.0.0.1:8800/> — 분류 정확도, 반응속도(추론→제어),
-  전체 경로 지연(device→제어), 통신 신뢰도, 32채널 파형 표시
+  전체 경로 지연(device→제어), 통신 신뢰도, action 확률 시계열, 32채널 파형 표시
+  (두 차트의 x축은 KST)
+- 시계열 로그: 추론 결과마다 dashboard 값들이 `logs/eeg_metrics_<시각>.csv`에
+  저장됨 — 첫 컬럼은 KST(`YYYY-MM-DD HH:MM:SS.mmm+09:00`), 이후
+  true/inferred action, confidence, action별 확률 %, 정확도, 지연(ms), 신뢰도 %
 
 ## 테스트
 
