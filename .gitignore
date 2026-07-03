@@ -3,6 +3,7 @@ Binaries/
 Intermediate/
 Saved/
 DerivedDataCache/
+DroneSim-Release/
 
 # Visual Studio
 .vs/
