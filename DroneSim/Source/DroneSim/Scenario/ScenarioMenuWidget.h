@@ -13,7 +13,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRecordingRequested);
  *  generated from the save timestamp, so no file name input is shown.
  *  Recording starts with the Space bar only (no mouse input); the widget takes
  *  keyboard focus while shown so it can receive the key press.
- *  (Shown only when the game is launched with -ScenarioRecording; the default
+ *  (Shown only when the game is launched with -recording; the default
  *  launch goes straight into EEG running mode without this screen.)
  *  The layout is designed in a Widget Blueprint that uses this class as its parent;
  *  the designed text block must be named WarningText to bind.

@@ -60,8 +60,8 @@ void ADroneSimPlayerController::BeginPlay()
         ScenarioRunner->OnScenarioFinished.AddDynamic(this, &ADroneSimPlayerController::HandleScenarioFinished);
 
         // EEG running mode is the default; scenario collection is the secondary
-        // function, selected with the -ScenarioRecording launch option
-        if (FParse::Param(FCommandLine::Get(), TEXT("ScenarioRecording")))
+        // function, selected with the -recording launch option
+        if (FParse::Param(FCommandLine::Get(), TEXT("recording")))
         {
             ShowMenu();
         }
