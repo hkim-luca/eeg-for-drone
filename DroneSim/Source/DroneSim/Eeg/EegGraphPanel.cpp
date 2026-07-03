@@ -24,11 +24,15 @@ class SEegGraph final : public SLeafWidget
     }
 
     void SetStyle(const FLinearColor &InLineColor, const FLinearColor &InBackgroundColor,
-                  const FVector2D &InDesiredSize)
+                  const FVector2D &InDesiredSize, float InLabelColumnWidth, const FLinearColor &InLabelColor,
+                  int32 InLabelFontSize)
     {
         LineColor = InLineColor;
         BackgroundColor = InBackgroundColor;
         DesiredSize = InDesiredSize;
+        LabelColumnWidth = InLabelColumnWidth;
+        LabelColor = InLabelColor;
+        LabelFontSize = InLabelFontSize;
     }
 
     auto ComputeDesiredSize(float) const -> FVector2D override
@@ -45,6 +49,9 @@ class SEegGraph final : public SLeafWidget
     FLinearColor LineColor = FLinearColor::Green;
     FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.6f);
     FVector2D DesiredSize = FVector2D(340.0f, 520.0f);
+    float LabelColumnWidth = 34.0f;
+    FLinearColor LabelColor = FLinearColor(0.7f, 0.7f, 0.7f, 1.0f);
+    int32 LabelFontSize = 8;
 };
 
 auto SEegGraph::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedGeometry, const FSlateRect &MyCullingRect,
@@ -77,8 +84,12 @@ auto SEegGraph::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedGeometr
     constexpr float FullScaleMicrovolts = 40.0f;
 
     const float StripHeight = Size.Y / static_cast<float>(EegConfig::ChannelCount);
+    const float GraphOriginX = FMath::Min(LabelColumnWidth, Size.X * 0.5f);
+    const float GraphWidth = FMath::Max(Size.X - GraphOriginX, 1.0f);
     const float AmplitudeScale = (StripHeight * 0.45f) / FullScaleMicrovolts;
-    const float StepX = Size.X / static_cast<float>(PointCount - 1);
+    const float StepX = GraphWidth / static_cast<float>(PointCount - 1);
+
+    const FSlateFontInfo LabelFont = FCoreStyle::GetDefaultFontStyle("Regular", LabelFontSize);
 
     TArray<FVector2f> Points;
     Points.SetNumUninitialized(PointCount);
@@ -88,21 +99,28 @@ auto SEegGraph::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedGeometr
         const float CenterY = (static_cast<float>(Channel) + 0.5f) * StripHeight;
         const int32 ChannelOffset = Channel * EegConfig::GraphWindowSamples;
 
+        const FVector2f LabelPosition(2.0f, CenterY - static_cast<float>(LabelFontSize) * 0.5f);
+        FSlateDrawElement::MakeText(OutDrawElements, LayerId + 1,
+                                    AllottedGeometry.ToPaintGeometry(FVector2f(GraphOriginX, StripHeight),
+                                                                     FSlateLayoutTransform(LabelPosition)),
+                                    FString(EegConfig::ChannelNames[Channel]), LabelFont, ESlateDrawEffect::None,
+                                    LabelColor);
+
         for (int32 Point = 0; Point < PointCount; ++Point)
         {
             // ring order: OldestIndex is the oldest sample, so time flows left to right
             const int32 SampleIndex = (OldestIndex + Point * PointStride) % EegConfig::GraphWindowSamples;
             const float Value = Buffer[ChannelOffset + SampleIndex];
-            Points[Point] = FVector2f(static_cast<float>(Point) * StepX,
+            Points[Point] = FVector2f(GraphOriginX + static_cast<float>(Point) * StepX,
                                       FMath::Clamp(CenterY - Value * AmplitudeScale, CenterY - StripHeight * 0.5f,
                                                    CenterY + StripHeight * 0.5f));
         }
 
-        FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(), Points,
+        FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(), Points,
                                      ESlateDrawEffect::None, LineColor, false, 1.0f);
     }
 
-    return LayerId + 2;
+    return LayerId + 3;
 }
 
 void UEegGraphPanel::SetRunner(const UEegRunnerComponent *InRunner)
@@ -119,7 +137,7 @@ void UEegGraphPanel::SynchronizeProperties()
     Super::SynchronizeProperties();
     if (Graph.IsValid())
     {
-        Graph->SetStyle(LineColor, BackgroundColor, PanelDesiredSize);
+        Graph->SetStyle(LineColor, BackgroundColor, PanelDesiredSize, LabelColumnWidth, LabelColor, LabelFontSize);
     }
 }
 
@@ -133,6 +151,6 @@ auto UEegGraphPanel::RebuildWidget() -> TSharedRef<SWidget>
 {
     Graph = SNew(SEegGraph);
     Graph->SetRunner(PendingRunner);
-    Graph->SetStyle(LineColor, BackgroundColor, PanelDesiredSize);
+    Graph->SetStyle(LineColor, BackgroundColor, PanelDesiredSize, LabelColumnWidth, LabelColor, LabelFontSize);
     return Graph.ToSharedRef();
 }

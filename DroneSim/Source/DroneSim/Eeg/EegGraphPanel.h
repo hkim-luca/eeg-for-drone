@@ -35,6 +35,19 @@ class UEegGraphPanel : public UWidget
     UPROPERTY(EditAnywhere, Category = "EEG")
     FVector2D PanelDesiredSize = FVector2D(340.0f, 520.0f);
 
+    /** Width in pixels reserved on the left for the per-channel electrode name labels */
+    UPROPERTY(EditAnywhere, Category = "EEG")
+    float LabelColumnWidth = 34.0f;
+
+    /** Electrode label text color */
+    UPROPERTY(EditAnywhere, Category = "EEG")
+    FLinearColor LabelColor = FLinearColor(0.7f, 0.7f, 0.7f, 1.0f);
+
+    /** Electrode label font size; strips are ~16px tall at the default panel size, so this
+     *  has a practical floor around 8 before labels overlap */
+    UPROPERTY(EditAnywhere, Category = "EEG")
+    int32 LabelFontSize = 8;
+
     void SynchronizeProperties() override;
     void ReleaseSlateResources(bool bReleaseChildren) override;
 
