@@ -29,7 +29,7 @@ class UEegGraphPanel : public UWidget
 
     /** Panel background color (default: mostly opaque dark) */
     UPROPERTY(EditAnywhere, Category = "EEG")
-    FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.6f);
+    FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
     /** Size requested from the layout when the Blueprint does not force one */
     UPROPERTY(EditAnywhere, Category = "EEG")

@@ -29,7 +29,7 @@ class UDroneMinimapWidget : public UWidget
 
     /** Panel background color */
     UPROPERTY(EditAnywhere, Category = "Minimap")
-    FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.6f);
+    FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
     /** Flight trail line color (muted HUD green) */
     UPROPERTY(EditAnywhere, Category = "Minimap")
