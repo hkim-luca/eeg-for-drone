@@ -66,13 +66,16 @@ void FEegClient::Tick(double NowSeconds, const TFunctionRef<void(TConstArrayView
 
     if (State == EState::Connecting)
     {
-        const ESocketConnectionState ConnectionState = Socket->GetConnectionState();
-        if (ConnectionState == SCS_Connected)
+        // a non-blocking connect is complete when the socket turns writable; do not use
+        // GetConnectionState() to promote - right after creation it reports SCS_Connected
+        // for up to 5 seconds regardless of the actual handshake, which made the first
+        // send fail with "not connected" and drop the link immediately
+        if (Socket->Wait(ESocketWaitConditions::WaitForWrite, FTimespan::Zero()))
         {
             State = EState::Connected;
             FScenarioLog::Info(FString::Printf(TEXT("EEG server connected: %s:%d"), *Host, Port));
         }
-        else if (ConnectionState == SCS_ConnectionError || NowSeconds >= ConnectDeadline)
+        else if (Socket->GetConnectionState() == SCS_ConnectionError || NowSeconds >= ConnectDeadline)
         {
             DropConnection(NowSeconds, TEXT("connect failed"));
         }
@@ -191,11 +194,10 @@ auto FEegClient::PumpReceive(const TFunctionRef<void(TConstArrayView<uint8>)> &O
         int32 BytesRead = 0;
         if (!Socket->Recv(Chunk, sizeof(Chunk), BytesRead))
         {
-            return ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLastErrorCode() == SE_EWOULDBLOCK;
-        }
-        if (BytesRead <= 0)
-        {
-            return false; // orderly shutdown by the server
+            // BytesRead == 0 is an orderly shutdown by the server (recv itself succeeded,
+            // so the last error code would be stale); negative means a real socket error
+            return BytesRead < 0 &&
+                   ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLastErrorCode() == SE_EWOULDBLOCK;
         }
 
         InBuffer.Append(Chunk, BytesRead);
