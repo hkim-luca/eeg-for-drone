@@ -12,14 +12,6 @@ void UEegHudWidget::SetRunner(UEegRunnerComponent *InRunner)
     }
 }
 
-void UEegHudWidget::NativeOnInitialized()
-{
-    Super::NativeOnInitialized();
-
-    // keyboard focus is required to receive NativeOnKeyDown for the stop shortcut
-    SetIsFocusable(true);
-}
-
 void UEegHudWidget::NativeTick(const FGeometry &MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
@@ -53,17 +45,6 @@ void UEegHudWidget::NativeTick(const FGeometry &MyGeometry, float InDeltaTime)
     if (StatusText != nullptr)
     {
         StatusText->SetText(FText::FromString(
-            FString::Printf(TEXT("TRUE: %s | [R] STOP"), *ScenarioActionName(Pinned->GetSimulator().GetTrueAction()))));
+            FString::Printf(TEXT("TRUE: %s"), *ScenarioActionName(Pinned->GetSimulator().GetTrueAction()))));
     }
-}
-
-auto UEegHudWidget::NativeOnKeyDown(const FGeometry &InGeometry, const FKeyEvent &InKeyEvent) -> FReply
-{
-    if (InKeyEvent.GetKey() == EKeys::R || InKeyEvent.GetKey() == EKeys::BackSpace)
-    {
-        OnStopRequested.Broadcast();
-        return FReply::Handled();
-    }
-
-    return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
 }

@@ -112,12 +112,9 @@ class ADroneSimPlayerController : public APlayerController
     void HandleRecordingRequested();
 
     /** Starts EEG running mode; entered directly from BeginPlay by default
-     *  (no menu is shown unless the game was launched with -ScenarioRecording) */
+     *  (no menu is shown unless the game was launched with -ScenarioRecording).
+     *  The mode runs until the game exits. */
     void StartEegRunningMode();
-
-    /** Stops EEG running mode and reloads the level, which restarts the mode fresh */
-    UFUNCTION()
-    void HandleEegStopRequested();
 
     /** Saves the CSV and returns to the initial screen when the scenario ends */
     UFUNCTION()

@@ -164,44 +164,29 @@ void ADroneSimPlayerController::StartEegRunningMode()
 {
     FScenarioLog::Info(TEXT("EEG running mode start (default mode)"));
 
+    SetInputMode(FInputModeGameOnly());
+    SetShowMouseCursor(false);
+
     // action label HUD, shared with recording mode but fed by the EEG runner
     if (CreateActionHud(TEXT("CONNECTING")))
     {
         EegRunner->OnActionChanged.AddDynamic(HudWidget.Get(), &UScenarioHudWidget::SetActionLabel);
     }
 
-    // EEG overlay: electrode graphs top-right, status line, and the stop shortcut
+    // EEG overlay: electrode graphs top-right, accuracy top-left, connection state
     EegHudWidget = CreateWidget<UEegHudWidget>(this, EegHudWidgetClass);
     if (EegHudWidget != nullptr)
     {
         EegHudWidget->AddToViewport(11);
         EegHudWidget->SetRunner(EegRunner);
-        EegHudWidget->OnStopRequested.AddDynamic(this, &ADroneSimPlayerController::HandleEegStopRequested);
-
-        // same input setup as the menu: keyboard only, cursor locked so focus cannot be lost
-        SetInputMode(FInputModeUIOnly().SetLockMouseToViewportBehavior(EMouseLockMode::LockAlways));
-        SetShowMouseCursor(false);
-        EegHudWidget->SetKeyboardFocus();
     }
     else
     {
         FScenarioLog::Error(TEXT("Could not spawn EEG HUD widget. Set EegHudWidgetClass to a Widget Blueprint "
-                                 "on the player controller; running mode continues without graphs, stop via "
-                                 "quitting the game."));
-        SetInputMode(FInputModeGameOnly());
-        SetShowMouseCursor(false);
+                                 "on the player controller; running mode continues without graphs."));
     }
 
     EegRunner->Start(ScenarioMoveSpeed);
-}
-
-void ADroneSimPlayerController::HandleEegStopRequested()
-{
-    // reloading the level re-enters BeginPlay, which starts EEG running mode again
-    // (the default) - so the stop shortcut acts as a restart
-    FScenarioLog::Info(TEXT("EEG running mode stop requested; restarting the level"));
-    EegRunner->Stop();
-    ReturnToInitialScreen();
 }
 
 void ADroneSimPlayerController::HandleScenarioFinished()
