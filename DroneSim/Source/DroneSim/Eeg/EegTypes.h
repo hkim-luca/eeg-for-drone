@@ -10,6 +10,18 @@ namespace EegConfig
 /** Number of electrodes on the simulated EEG device */
 inline constexpr int32 ChannelCount = 32;
 
+/** International 10-20/10-10 electrode names for the 32 simulated channels, in the same
+ *  order as ChannelCount / GroupStartChannel. Approximates a standard actiCAP/EasyCap
+ *  32-channel montage (matches MNE's easycap-M1 template channel order); the simulated
+ *  device has no real montage, so this is a display label only. */
+inline constexpr const TCHAR *ChannelNames[ChannelCount] = {
+    TEXT("Fp1"), TEXT("Fp2"), TEXT("F7"),  TEXT("F3"),  TEXT("Fz"), TEXT("F4"),   TEXT("F8"),  TEXT("FC5"),
+    TEXT("FC1"), TEXT("FC2"), TEXT("FC6"), TEXT("T7"),  TEXT("C3"), TEXT("Cz"),   TEXT("C4"),  TEXT("T8"),
+    TEXT("CP5"), TEXT("CP1"), TEXT("CP2"), TEXT("CP6"), TEXT("P7"), TEXT("P3"),   TEXT("Pz"),  TEXT("P4"),
+    TEXT("P8"),  TEXT("PO9"), TEXT("O1"),  TEXT("Oz"),  TEXT("O2"), TEXT("PO10"), TEXT("AF7"), TEXT("AF8"),
+};
+static_assert(UE_ARRAY_COUNT(ChannelNames) == ChannelCount, "ChannelNames must have one entry per channel");
+
 /** Samples generated per second per channel */
 inline constexpr int32 SampleRateHz = 250;
 
