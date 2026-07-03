@@ -13,11 +13,10 @@ class UTextBlock;
  *  Overlay shown while EEG running mode is active. The layout is designed in a Widget
  *  Blueprint using this class as its parent; bindable elements (all optional):
  *   - GraphPanel (EegGraphPanel), top-right: the 32-electrode signal graphs
- *   - AccuracyText (TextBlock), top-left: rolling classification accuracy from the server
  *   - ProbabilityText (TextBlock), top-left: per-action probabilities of the last result
  *     (five lines: FORWARD/BACKWARD/LEFT/RIGHT/STOP %)
  *   - ConnectionText (TextBlock): EEG server link state (green CONNECTED / red RECONNECTING)
- *   - StatusText (TextBlock): ground-truth action embedded in the simulated signal
+ *  The rolling accuracy and the ground-truth action are shown on the web dashboard instead.
  */
 UCLASS(Abstract)
 class UEegHudWidget : public UUserWidget
@@ -36,10 +35,6 @@ class UEegHudWidget : public UUserWidget
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UEegGraphPanel> GraphPanel;
 
-    /** Rolling classification accuracy, top-left; designed in the Widget Blueprint */
-    UPROPERTY(meta = (BindWidgetOptional))
-    TObjectPtr<UTextBlock> AccuracyText;
-
     /** Per-action probability lines, top-left; designed in the Widget Blueprint */
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> ProbabilityText;
@@ -47,10 +42,6 @@ class UEegHudWidget : public UUserWidget
     /** EEG server link state; designed in the Widget Blueprint */
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> ConnectionText;
-
-    /** Ground-truth action line; designed in the Widget Blueprint */
-    UPROPERTY(meta = (BindWidgetOptional))
-    TObjectPtr<UTextBlock> StatusText;
 
     /** Running-mode driver the HUD reports on */
     TWeakObjectPtr<UEegRunnerComponent> Runner;

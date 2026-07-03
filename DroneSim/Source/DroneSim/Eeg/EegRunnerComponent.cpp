@@ -21,7 +21,6 @@ UEegRunnerComponent::UEegRunnerComponent()
 void UEegRunnerComponent::Start(float InMoveSpeed)
 {
     CurrentAction = EScenarioAction::Stop;
-    LastAccuracyPercent = -1.0f;
     FMemory::Memzero(LastActionProbs);
     LastActionLabel.Reset();
     PendingFrames.Reset();
@@ -75,11 +74,6 @@ auto UEegRunnerComponent::IsServerConnected() const -> bool
 auto UEegRunnerComponent::GetSimulator() const -> const FEegSignalSimulator &
 {
     return Simulator;
-}
-
-auto UEegRunnerComponent::GetLastAccuracyPercent() const -> float
-{
-    return LastAccuracyPercent;
 }
 
 auto UEegRunnerComponent::GetLastActionProbs() const -> TConstArrayView<float>
@@ -156,7 +150,6 @@ void UEegRunnerComponent::HandleServerMessage(TConstArrayView<uint8> Payload)
     }
 
     CurrentAction = Result.Action;
-    LastAccuracyPercent = Result.AccuracyPercent;
     FMemory::Memcpy(LastActionProbs, Result.ActionProbs, sizeof(LastActionProbs));
     PendingAcks.Add(Result);
 }

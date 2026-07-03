@@ -44,10 +44,6 @@ class UEegRunnerComponent : public UActorComponent
     /** Simulated device, exposed read-only for the electrode graph widget */
     auto GetSimulator() const -> const FEegSignalSimulator &;
 
-    /** Rolling classification accuracy last reported by the server, in percent;
-     *  negative until the first action result arrives */
-    auto GetLastAccuracyPercent() const -> float;
-
     /** Per-action probabilities of the last result in [0, 1], ordered by EegConfig::ProbOrder;
      *  all zero until the first action result arrives */
     auto GetLastActionProbs() const -> TConstArrayView<float>;
@@ -97,9 +93,6 @@ class UEegRunnerComponent : public UActorComponent
 
     /** Action currently applied to the pawn; updated by server messages */
     EScenarioAction CurrentAction = EScenarioAction::Stop;
-
-    /** Rolling classification accuracy last reported by the server; negative = none yet */
-    float LastAccuracyPercent = -1.0f;
 
     /** Per-action probabilities of the last result, ordered by EegConfig::ProbOrder */
     float LastActionProbs[EegConfig::ProbCount] = {};
