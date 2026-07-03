@@ -136,7 +136,9 @@ auto SDroneMinimapPanel::OnPaint(const FPaintArgs &Args, const FGeometry &Allott
                                      TrailScreenPoints, ESlateDrawEffect::None, TrailColor, false, 2.0f);
     }
 
-    // drone icon: circle at the current position plus a heading tick (0 deg = north = screen up)
+    // drone icon: circle at the current position plus a heading tick. HeadingDeg is the actor's
+    // Yaw, and Yaw 0 faces +X (East, per the East/North convention in DroneTelemetryComponent),
+    // which maps directly to screen (cos, sin) since East is screen +X and North is screen -Y.
     const FVector2f IconCenter = WorldToScreen(CurrentPosition);
     TArray<FVector2f> CirclePoints;
     CirclePoints.Reserve(DroneIconCircleSegments + 1);
@@ -149,7 +151,7 @@ auto SDroneMinimapPanel::OnPaint(const FPaintArgs &Args, const FGeometry &Allott
                                  ESlateDrawEffect::None, DroneIconColor, false, 2.0f);
 
     const float HeadingRadians = FMath::DegreesToRadians(Pinned->GetHeadingDeg());
-    const FVector2f HeadingDirection(FMath::Sin(HeadingRadians), -FMath::Cos(HeadingRadians));
+    const FVector2f HeadingDirection(FMath::Cos(HeadingRadians), FMath::Sin(HeadingRadians));
     const FVector2f HeadingTip = IconCenter + HeadingDirection * DroneIconHeadingLengthPixels;
     FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 3, AllottedGeometry.ToPaintGeometry(),
                                  {IconCenter, HeadingTip}, ESlateDrawEffect::None, DroneIconColor, false, 2.0f);
