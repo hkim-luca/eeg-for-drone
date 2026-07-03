@@ -47,7 +47,7 @@ class UEegHudWidget : public UUserWidget
 
     /** Text color of the flight status lines (soft white, per typical FPV OSD defaults) */
     UPROPERTY(EditAnywhere, Category = "EEG")
-    FLinearColor StatusColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.92f);
+    FLinearColor StatusColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.6f);
 
   protected:
     void NativeOnInitialized() override;

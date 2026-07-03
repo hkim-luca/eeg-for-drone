@@ -58,11 +58,11 @@ class SDroneMinimapPanel final : public SLeafWidget
 
   private:
     TWeakObjectPtr<const UDroneTelemetryComponent> Telemetry;
-    FLinearColor GridColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.15f);
+    FLinearColor GridColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.06f);
     FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.6f);
-    FLinearColor TrailColor = FLinearColor(0.03f, 0.45f, 0.14f, 1.0f);
-    FLinearColor DroneIconColor = FLinearColor(0.75f, 0.35f, 0.02f, 1.0f);
-    FLinearColor HomeColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.92f);
+    FLinearColor TrailColor = FLinearColor(0.03f, 0.45f, 0.14f, 0.6f);
+    FLinearColor DroneIconColor = FLinearColor(0.75f, 0.35f, 0.02f, 0.8f);
+    FLinearColor HomeColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.6f);
     float GridSpacingMeters = 10.0f;
     float MinViewRadiusMeters = 10.0f;
     FVector2D DesiredSize = FVector2D(260.0f, 260.0f);
@@ -146,7 +146,7 @@ auto SDroneMinimapPanel::OnPaint(const FPaintArgs &Args, const FGeometry &Allott
         }
         TrailScreenPoints.Add(WorldToScreen(CurrentPosition));
         FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(),
-                                     TrailScreenPoints, ESlateDrawEffect::None, TrailColor, false, 2.0f);
+                                     TrailScreenPoints, ESlateDrawEffect::None, TrailColor, false, 1.5f);
     }
 
     // home (takeoff) point: small hollow square, like the "H" marker on real drone maps
@@ -157,7 +157,7 @@ auto SDroneMinimapPanel::OnPaint(const FPaintArgs &Args, const FGeometry &Allott
         {HomeCenter + FVector2f(-HomeHalfSize, -HomeHalfSize), HomeCenter + FVector2f(HomeHalfSize, -HomeHalfSize),
          HomeCenter + FVector2f(HomeHalfSize, HomeHalfSize), HomeCenter + FVector2f(-HomeHalfSize, HomeHalfSize),
          HomeCenter + FVector2f(-HomeHalfSize, -HomeHalfSize)},
-        ESlateDrawEffect::None, HomeColor, false, 2.0f);
+        ESlateDrawEffect::None, HomeColor, false, 1.5f);
 
     // drone icon: circle at the current position plus a heading tick. HeadingDeg is the compass
     // azimuth from true north (0 = north = screen up), so the tick direction is (sin, -cos) of it.
@@ -170,13 +170,13 @@ auto SDroneMinimapPanel::OnPaint(const FPaintArgs &Args, const FGeometry &Allott
         CirclePoints.Add(IconCenter + FVector2f(FMath::Cos(Angle), FMath::Sin(Angle)) * DroneIconRadiusPixels);
     }
     FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 3, AllottedGeometry.ToPaintGeometry(), CirclePoints,
-                                 ESlateDrawEffect::None, DroneIconColor, false, 2.0f);
+                                 ESlateDrawEffect::None, DroneIconColor, false, 1.5f);
 
     const float HeadingRadians = FMath::DegreesToRadians(Pinned->GetHeadingDeg());
     const FVector2f HeadingDirection(FMath::Sin(HeadingRadians), -FMath::Cos(HeadingRadians));
     const FVector2f HeadingTip = IconCenter + HeadingDirection * DroneIconHeadingLengthPixels;
     FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 3, AllottedGeometry.ToPaintGeometry(),
-                                 {IconCenter, HeadingTip}, ESlateDrawEffect::None, DroneIconColor, false, 2.0f);
+                                 {IconCenter, HeadingTip}, ESlateDrawEffect::None, DroneIconColor, false, 1.5f);
 
     OutDrawElements.PopClip();
     return LayerId + 4;

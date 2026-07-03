@@ -9,9 +9,11 @@ class SDroneAttitudePanel;
 class UDroneTelemetryComponent;
 
 /**
- *  UMG widget drawing a flight-HUD-style artificial horizon: a sky/ground horizon line that
- *  rotates with roll and slides with pitch, plus a fixed aircraft symbol marking the drone's
- *  own orientation. Drop it into a Widget Blueprint and size it there.
+ *  UMG widget drawing an OSD-style artificial horizon: a thin horizon line (with faint pitch
+ *  ladder marks) that rotates with roll and slides with pitch over the scene, plus a fixed
+ *  aircraft symbol marking the drone's own orientation. Sky/ground fills are off by default
+ *  so the instrument stays unobtrusive; raise their alpha to restore the filled look.
+ *  Drop it into a Widget Blueprint and size it there.
  */
 UCLASS()
 class UDroneAttitudeIndicator : public UWidget
@@ -22,17 +24,17 @@ class UDroneAttitudeIndicator : public UWidget
     /** Sets the telemetry component this indicator reads roll/pitch from */
     void SetTelemetry(const UDroneTelemetryComponent *InTelemetry);
 
-    /** Sky (upper) color */
+    /** Sky (upper) fill color; transparent by default for the OSD line-only look */
     UPROPERTY(EditAnywhere, Category = "Gauge")
-    FLinearColor SkyColor = FLinearColor(0.15f, 0.35f, 0.65f, 0.85f);
+    FLinearColor SkyColor = FLinearColor(0.15f, 0.35f, 0.65f, 0.0f);
 
-    /** Ground (lower) color */
+    /** Ground (lower) fill color; transparent by default for the OSD line-only look */
     UPROPERTY(EditAnywhere, Category = "Gauge")
-    FLinearColor GroundColor = FLinearColor(0.35f, 0.25f, 0.1f, 0.85f);
+    FLinearColor GroundColor = FLinearColor(0.35f, 0.25f, 0.1f, 0.0f);
 
-    /** Horizon line and aircraft symbol color */
+    /** Horizon line, pitch ladder and aircraft symbol color */
     UPROPERTY(EditAnywhere, Category = "Gauge")
-    FLinearColor LineColor = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    FLinearColor LineColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.6f);
 
     /** Pixels the horizon shifts per degree of pitch */
     UPROPERTY(EditAnywhere, Category = "Gauge", meta = (ClampMin = "0.1"))

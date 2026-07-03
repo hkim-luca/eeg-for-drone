@@ -49,9 +49,9 @@ class SDroneProbabilityPanel final : public SLeafWidget
   private:
     TWeakObjectPtr<const UEegRunnerComponent> Runner;
     FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    FLinearColor TrackColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.15f);
-    FLinearColor BarColor = FLinearColor(0.03f, 0.45f, 0.14f, 1.0f);
-    FLinearColor HighlightColor = FLinearColor(0.75f, 0.35f, 0.02f, 1.0f);
+    FLinearColor TrackColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.08f);
+    FLinearColor BarColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.6f);
+    FLinearColor HighlightColor = FLinearColor(0.03f, 0.45f, 0.14f, 0.8f);
     int32 FontSize = 14;
     FVector2D DesiredSize = FVector2D(220.0f, 130.0f);
 };
@@ -100,7 +100,7 @@ auto SDroneProbabilityPanel::OnPaint(const FPaintArgs &Args, const FGeometry &Al
     const float BarHeight = RowHeight * 0.45f;
     // OSD-style black outline keeps the floating text readable over bright scenery
     FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Bold", FontSize);
-    Font.OutlineSettings = FFontOutlineSettings(1, FLinearColor(0.0f, 0.0f, 0.0f, 0.9f));
+    Font.OutlineSettings = FFontOutlineSettings(1, FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
     const FSlateBrush *WhiteBrush = FCoreStyle::Get().GetBrush("WhiteBrush");
 
     for (int32 Index = 0; Index < EegConfig::ProbCount; ++Index)

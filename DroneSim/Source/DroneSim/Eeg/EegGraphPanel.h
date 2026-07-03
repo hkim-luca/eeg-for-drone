@@ -25,7 +25,7 @@ class UEegGraphPanel : public UWidget
 
     /** Waveform line color (muted HUD green) */
     UPROPERTY(EditAnywhere, Category = "EEG")
-    FLinearColor LineColor = FLinearColor(0.03f, 0.45f, 0.14f, 1.0f);
+    FLinearColor LineColor = FLinearColor(0.03f, 0.45f, 0.14f, 0.6f);
 
     /** Panel background color (default: mostly opaque dark) */
     UPROPERTY(EditAnywhere, Category = "EEG")
@@ -41,7 +41,7 @@ class UEegGraphPanel : public UWidget
 
     /** Electrode label text color (soft white, per typical FPV OSD defaults) */
     UPROPERTY(EditAnywhere, Category = "EEG")
-    FLinearColor LabelColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.92f);
+    FLinearColor LabelColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.6f);
 
     /** Electrode label font size; strips are ~16px tall at the default panel size, so this
      *  has a practical floor around 8 before labels overlap */

@@ -84,7 +84,7 @@ void UEegHudWidget::NativeOnInitialized()
             Line->SetColorAndOpacity(FSlateColor(StatusColor));
             // OSD-style drop shadow keeps the floating text readable over bright scenery
             Line->SetShadowOffset(FVector2D(1.0, 1.0));
-            Line->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.9f));
+            Line->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
             Line->SetJustification(ETextJustify::Left);
             UVerticalBoxSlot *VerticalSlot = StatusBox->AddChildToVerticalBox(Line);
             if (VerticalSlot != nullptr)
@@ -106,8 +106,8 @@ void UEegHudWidget::NativeTick(const FGeometry &MyGeometry, float InDeltaTime)
         const bool bConnected = PinnedRunner->IsServerConnected();
         ConnectionText->SetText(bConnected ? NSLOCTEXT("EegHud", "Connected", "EEG SERVER: CONNECTED")
                                            : NSLOCTEXT("EegHud", "Reconnecting", "EEG SERVER: RECONNECTING..."));
-        ConnectionText->SetColorAndOpacity(bConnected ? FSlateColor(FLinearColor(0.03f, 0.45f, 0.14f))
-                                                      : FSlateColor(FLinearColor(0.7f, 0.1f, 0.05f)));
+        ConnectionText->SetColorAndOpacity(bConnected ? FSlateColor(FLinearColor(0.03f, 0.45f, 0.14f, 0.8f))
+                                                      : FSlateColor(FLinearColor(0.7f, 0.1f, 0.05f, 0.8f)));
     }
 
     // OSD-style telemetry readout, bottom-left, mirroring what real drone pilots monitor:

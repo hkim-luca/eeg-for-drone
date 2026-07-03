@@ -37,11 +37,11 @@ class UDroneCompassTape : public UWidget
 
     /** Tick mark and tape text color (soft white, per typical FPV OSD defaults) */
     UPROPERTY(EditAnywhere, Category = "Gauge")
-    FLinearColor TapeColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.92f);
+    FLinearColor TapeColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.6f);
 
     /** Center pointer and current-heading readout color (muted HUD green) */
     UPROPERTY(EditAnywhere, Category = "Gauge")
-    FLinearColor PointerColor = FLinearColor(0.03f, 0.45f, 0.14f, 1.0f);
+    FLinearColor PointerColor = FLinearColor(0.03f, 0.45f, 0.14f, 0.8f);
 
     /** Tick label font size */
     UPROPERTY(EditAnywhere, Category = "Gauge")

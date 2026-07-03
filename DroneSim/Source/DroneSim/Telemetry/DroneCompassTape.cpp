@@ -78,8 +78,8 @@ class SDroneCompassPanel final : public SLeafWidget
     float VisibleRange = 120.0f;
     float TickInterval = 30.0f;
     FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.6f);
-    FLinearColor TapeColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.92f);
-    FLinearColor PointerColor = FLinearColor(0.03f, 0.45f, 0.14f, 1.0f);
+    FLinearColor TapeColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.6f);
+    FLinearColor PointerColor = FLinearColor(0.03f, 0.45f, 0.14f, 0.8f);
     int32 FontSize = 12;
     FVector2D DesiredSize = FVector2D(220.0f, 44.0f);
 };
@@ -108,7 +108,7 @@ auto SDroneCompassPanel::OnPaint(const FPaintArgs &Args, const FGeometry &Allott
     const float PixelsPerDegree = Size.X / VisibleRange;
     // OSD-style black outline keeps the floating text readable over bright scenery
     FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Regular", FontSize);
-    Font.OutlineSettings = FFontOutlineSettings(1, FLinearColor(0.0f, 0.0f, 0.0f, 0.9f));
+    Font.OutlineSettings = FFontOutlineSettings(1, FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
     const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
 
     OutDrawElements.PushClip(FSlateClippingZone(AllottedGeometry));
@@ -146,11 +146,11 @@ auto SDroneCompassPanel::OnPaint(const FPaintArgs &Args, const FGeometry &Allott
     // fixed center pointer marking the current heading
     FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(),
                                  {FVector2f(CenterX, 0.0f), FVector2f(CenterX, Size.Y)}, ESlateDrawEffect::None,
-                                 PointerColor, false, 2.0f);
+                                 PointerColor, false, 1.0f);
 
     // numeric readout centered in the bottom band, below the tick-label band
     FSlateFontInfo BoldFont = FCoreStyle::GetDefaultFontStyle("Bold", FontSize);
-    BoldFont.OutlineSettings = FFontOutlineSettings(1, FLinearColor(0.0f, 0.0f, 0.0f, 0.9f));
+    BoldFont.OutlineSettings = FFontOutlineSettings(1, FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
     const FString HeadingText = FString::Printf(TEXT("%03.0f"), Heading);
     const FVector2f HeadingTextSize(FontMeasure->Measure(HeadingText, BoldFont));
     FSlateDrawElement::MakeText(

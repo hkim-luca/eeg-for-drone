@@ -57,8 +57,8 @@ class SDroneTapePanel final : public SLeafWidget
     float VisibleRange = 60.0f;
     float TickInterval = 10.0f;
     FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    FLinearColor TapeColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.92f);
-    FLinearColor PointerColor = FLinearColor(0.03f, 0.45f, 0.14f, 1.0f);
+    FLinearColor TapeColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.6f);
+    FLinearColor PointerColor = FLinearColor(0.03f, 0.45f, 0.14f, 0.8f);
     int32 FontSize = 12;
     FVector2D DesiredSize = FVector2D(74.0f, 220.0f);
 };
@@ -91,7 +91,7 @@ auto SDroneTapePanel::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedG
     const float PixelsPerUnit = Size.Y / VisibleRange;
     // OSD-style black outline keeps the floating text readable over bright scenery
     FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Regular", FontSize);
-    Font.OutlineSettings = FFontOutlineSettings(1, FLinearColor(0.0f, 0.0f, 0.0f, 0.9f));
+    Font.OutlineSettings = FFontOutlineSettings(1, FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
 
     // the gauge label gets its own opaque header band; the scrolling tape is clipped to the
     // area below it so tick labels can never run into the label text
@@ -135,10 +135,10 @@ auto SDroneTapePanel::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedG
     // center pointer line and current-value readout, drawn on top of the scrolling tape
     FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(),
                                  {FVector2f(0.0f, CenterY), FVector2f(Size.X, CenterY)}, ESlateDrawEffect::None,
-                                 PointerColor, false, 2.0f);
+                                 PointerColor, false, 1.0f);
 
     FSlateFontInfo LabelFont = FCoreStyle::GetDefaultFontStyle("Bold", FontSize);
-    LabelFont.OutlineSettings = FFontOutlineSettings(1, FLinearColor(0.0f, 0.0f, 0.0f, 0.9f));
+    LabelFont.OutlineSettings = FFontOutlineSettings(1, FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
     FSlateDrawElement::MakeText(
         OutDrawElements, LayerId + 3,
         AllottedGeometry.ToPaintGeometry(

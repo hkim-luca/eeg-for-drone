@@ -30,15 +30,15 @@ class UDroneProbabilityPanel : public UWidget
 
     /** Empty bar track color */
     UPROPERTY(EditAnywhere, Category = "EEG")
-    FLinearColor TrackColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.15f);
+    FLinearColor TrackColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.08f);
 
-    /** Bar fill color for non-winning actions (muted HUD green) */
+    /** Bar fill and label color for non-winning actions (soft white) */
     UPROPERTY(EditAnywhere, Category = "EEG")
-    FLinearColor BarColor = FLinearColor(0.03f, 0.45f, 0.14f, 1.0f);
+    FLinearColor BarColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.6f);
 
-    /** Bar fill and label color for the highest-probability action (OSD amber) */
+    /** Bar fill and label color for the highest-probability action (muted HUD green) */
     UPROPERTY(EditAnywhere, Category = "EEG")
-    FLinearColor HighlightColor = FLinearColor(0.75f, 0.35f, 0.02f, 1.0f);
+    FLinearColor HighlightColor = FLinearColor(0.03f, 0.45f, 0.14f, 0.8f);
 
     /** Label/percentage font size */
     UPROPERTY(EditAnywhere, Category = "EEG")

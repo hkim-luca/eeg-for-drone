@@ -45,9 +45,9 @@ class SDroneAttitudePanel final : public SLeafWidget
 
   private:
     TWeakObjectPtr<const UDroneTelemetryComponent> Telemetry;
-    FLinearColor SkyColor = FLinearColor(0.15f, 0.35f, 0.65f, 0.85f);
-    FLinearColor GroundColor = FLinearColor(0.35f, 0.25f, 0.1f, 0.85f);
-    FLinearColor LineColor = FLinearColor::White;
+    FLinearColor SkyColor = FLinearColor(0.15f, 0.35f, 0.65f, 0.0f);
+    FLinearColor GroundColor = FLinearColor(0.35f, 0.25f, 0.1f, 0.0f);
+    FLinearColor LineColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.6f);
     float PixelsPerPitchDegree = 3.0f;
     FVector2D DesiredSize = FVector2D(140.0f, 140.0f);
 };
@@ -80,20 +80,54 @@ auto SDroneAttitudePanel::OnPaint(const FPaintArgs &Args, const FGeometry &Allot
 
     OutDrawElements.PushClip(FSlateClippingZone(AllottedGeometry));
 
-    const FVector2f SkyPosition(-Margin, HorizonY - Margin * 2.0f);
-    const FVector2f SkySize(Size.X + Margin * 2.0f, Margin * 2.0f);
-    FSlateDrawElement::MakeRotatedBox(OutDrawElements, LayerId + 1,
-                                      AllottedGeometry.ToPaintGeometry(SkySize, FSlateLayoutTransform(SkyPosition)),
-                                      WhiteBrush, ESlateDrawEffect::None, RollRadians, Center - SkyPosition,
-                                      FSlateDrawElement::RelativeToElement, SkyColor);
+    // optional sky/ground fills, off by default so the instrument does not compete visually
+    // with the drone itself; the OSD look is carried by the lines below
+    if (SkyColor.A > 0.0f || GroundColor.A > 0.0f)
+    {
+        const FVector2f SkyPosition(-Margin, HorizonY - Margin * 2.0f);
+        const FVector2f FillSize(Size.X + Margin * 2.0f, Margin * 2.0f);
+        FSlateDrawElement::MakeRotatedBox(
+            OutDrawElements, LayerId + 1,
+            AllottedGeometry.ToPaintGeometry(FillSize, FSlateLayoutTransform(SkyPosition)), WhiteBrush,
+            ESlateDrawEffect::None, RollRadians, Center - SkyPosition, FSlateDrawElement::RelativeToElement, SkyColor);
 
-    const FVector2f GroundPosition(-Margin, HorizonY);
-    const FVector2f GroundSize(Size.X + Margin * 2.0f, Margin * 2.0f);
-    FSlateDrawElement::MakeRotatedBox(
-        OutDrawElements, LayerId + 1,
-        AllottedGeometry.ToPaintGeometry(GroundSize, FSlateLayoutTransform(GroundPosition)), WhiteBrush,
-        ESlateDrawEffect::None, RollRadians, Center - GroundPosition, FSlateDrawElement::RelativeToElement,
-        GroundColor);
+        const FVector2f GroundPosition(-Margin, HorizonY);
+        FSlateDrawElement::MakeRotatedBox(
+            OutDrawElements, LayerId + 1,
+            AllottedGeometry.ToPaintGeometry(FillSize, FSlateLayoutTransform(GroundPosition)), WhiteBrush,
+            ESlateDrawEffect::None, RollRadians, Center - GroundPosition, FSlateDrawElement::RelativeToElement,
+            GroundColor);
+    }
+
+    // horizon line plus faint pitch ladder marks every 10 degrees, all rotated with the bank
+    // around the panel center; points are rotated manually since MakeLines has no angle input
+    auto RotateAroundCenter = [&](const FVector2f &Point) -> FVector2f {
+        const FVector2f Offset = Point - Center;
+        const float Cos = FMath::Cos(RollRadians);
+        const float Sin = FMath::Sin(RollRadians);
+        return Center + FVector2f(Offset.X * Cos - Offset.Y * Sin, Offset.X * Sin + Offset.Y * Cos);
+    };
+
+    const float HorizonHalfWidth = Size.X * 0.48f;
+    FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(),
+                                 {RotateAroundCenter(FVector2f(Center.X - HorizonHalfWidth, HorizonY)),
+                                  RotateAroundCenter(FVector2f(Center.X + HorizonHalfWidth, HorizonY))},
+                                 ESlateDrawEffect::None, LineColor, false, 1.5f);
+
+    const FLinearColor LadderColor = LineColor.CopyWithNewOpacity(LineColor.A * 0.5f);
+    const float LadderHalfWidth = HorizonHalfWidth * 0.4f;
+    for (int32 LadderStep = -2; LadderStep <= 2; ++LadderStep)
+    {
+        if (LadderStep == 0)
+        {
+            continue;
+        }
+        const float LadderY = HorizonY - static_cast<float>(LadderStep) * 10.0f * PixelsPerPitchDegree;
+        FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(),
+                                     {RotateAroundCenter(FVector2f(Center.X - LadderHalfWidth, LadderY)),
+                                      RotateAroundCenter(FVector2f(Center.X + LadderHalfWidth, LadderY))},
+                                     ESlateDrawEffect::None, LadderColor, false, 1.0f);
+    }
 
     OutDrawElements.PopClip();
 
@@ -102,10 +136,10 @@ auto SDroneAttitudePanel::OnPaint(const FPaintArgs &Args, const FGeometry &Allot
     const float WingHalfWidth = Size.X * 0.18f;
     FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(),
                                  {FVector2f(Center.X - WingHalfWidth, Center.Y), FVector2f(Center.X - 4.0f, Center.Y)},
-                                 ESlateDrawEffect::None, LineColor, false, 2.0f);
+                                 ESlateDrawEffect::None, LineColor, false, 1.5f);
     FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(),
                                  {FVector2f(Center.X + 4.0f, Center.Y), FVector2f(Center.X + WingHalfWidth, Center.Y)},
-                                 ESlateDrawEffect::None, LineColor, false, 2.0f);
+                                 ESlateDrawEffect::None, LineColor, false, 1.5f);
 
     return LayerId + 3;
 }
