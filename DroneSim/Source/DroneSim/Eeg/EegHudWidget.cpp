@@ -39,7 +39,8 @@ void UEegHudWidget::NativeTick(const FGeometry &MyGeometry, float InDeltaTime)
         FString Lines;
         for (int32 Index = 0; Index < EegConfig::ProbCount; ++Index)
         {
-            Lines += FString::Printf(TEXT("%s %.1f%%"), *ScenarioActionName(EegConfig::ProbOrder[Index]),
+            // zero-padded fixed width (00.0% ... 99.9%) so the lines do not jitter as values change
+            Lines += FString::Printf(TEXT("%s %04.1f%%"), *ScenarioActionName(EegConfig::ProbOrder[Index]),
                                      Probs[Index] * 100.0f);
             if (Index + 1 < EegConfig::ProbCount)
             {
