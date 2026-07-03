@@ -1,6 +1,7 @@
 #include "EegHudWidget.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
+#include "Components/VerticalBoxSlot.h"
 #include "EegGraphPanel.h"
 #include "EegRunnerComponent.h"
 #include "Styling/CoreStyle.h"
@@ -19,7 +20,8 @@ void UEegHudWidget::NativeOnInitialized()
     Super::NativeOnInitialized();
 
     // one text line per action inside the designed box, so the winning line can be
-    // recolored on its own (a single multi-line TextBlock has only one color)
+    // recolored on its own (a single multi-line TextBlock has only one color); right-aligned
+    // so the trailing "%" value lines up regardless of action-name length
     if (ProbabilityBox != nullptr)
     {
         ProbabilityBox->ClearChildren();
@@ -28,7 +30,12 @@ void UEegHudWidget::NativeOnInitialized()
             UTextBlock *Line = NewObject<UTextBlock>(this);
             Line->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", ProbabilityFontSize));
             Line->SetColorAndOpacity(FSlateColor(ProbabilityColor));
-            ProbabilityBox->AddChildToVerticalBox(Line);
+            Line->SetJustification(ETextJustify::Right);
+            UVerticalBoxSlot *VerticalSlot = ProbabilityBox->AddChildToVerticalBox(Line);
+            if (VerticalSlot != nullptr)
+            {
+                VerticalSlot->SetHorizontalAlignment(HAlign_Right);
+            }
             ProbabilityLines.Add(Line);
         }
     }
