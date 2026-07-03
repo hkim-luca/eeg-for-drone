@@ -10,7 +10,7 @@ enum class EScenarioAction : uint8
 {
     Left,
     Right,
-    Frontward,
+    Forward,
     Backward,
     Stop
 };

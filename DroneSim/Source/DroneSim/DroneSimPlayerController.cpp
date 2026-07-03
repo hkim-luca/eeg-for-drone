@@ -130,17 +130,18 @@ void ADroneSimPlayerController::HandleRecordingRequested()
                                  "on the player controller; playback continues without the HUD."));
     }
 
-    FScenarioLog::Info(
-        FString::Printf(TEXT("Starting scenario: %s"), *FPaths::GetCleanFilename(LoadedScenario.FilePath)));
-    ScenarioRunner->Start(LoadedScenario.Steps, RecordingResolution, ScenarioMoveSpeed);
+    // file name: recording start time in KST (yyyymmdd_hhmmss); the CSV
+    // is created now and appended to as the scenario plays, not written all at once at the end
+    const FString ScenarioName = FPaths::GetBaseFilename(LoadedScenario.FilePath);
+    const FString RecordingFileName = ScenarioTime::ToFileStampKst(ScenarioTime::NowKst());
+
+    FScenarioLog::Info(FString::Printf(TEXT("Starting scenario: %s"), *ScenarioName));
+    ScenarioRunner->Start(LoadedScenario.Steps, RecordingResolution, ScenarioMoveSpeed, RecordingFileName);
 }
 
 void ADroneSimPlayerController::HandleScenarioFinished()
 {
-    // file name: save time in KST (yyyymmdd_hhmmss) plus the scenario name
-    const FString ScenarioName = FPaths::GetBaseFilename(LoadedScenario.FilePath);
-    const FString SavedPath =
-        ScenarioRunner->SaveRecording(ScenarioTime::ToFileStampKst(ScenarioTime::NowKst()) + TEXT("_") + ScenarioName);
+    const FString SavedPath = ScenarioRunner->GetRecordingPath();
 
     // show the result on the HUD, separate from the action label; on-screen debug messages do
     // not render in Shipping builds

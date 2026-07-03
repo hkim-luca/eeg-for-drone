@@ -7,7 +7,7 @@
  *  Loads scenario steps from a JSON file. Steps play in file order; the runner waits
  *  between steps until the drone has physically settled, so no start times are given.
  *  Expected format:
- *  { "steps": [ { "duration": 2.0, "action": "frontward" }, ... ] }
+ *  { "steps": [ { "duration": 2.0, "action": "forward" }, ... ] }
  *  Valid action names are the EScenarioAction entries (case-insensitive).
  */
 class FScenarioLoader

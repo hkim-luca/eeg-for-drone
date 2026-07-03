@@ -28,6 +28,9 @@ struct FPositionSample
  *  and records the pawn position at a fixed sampling resolution.
  *  Steps run in order; after each step the runner waits until the drone has
  *  physically settled (stopped and level) before starting the next one.
+ *  The CSV at Saved/Recordings/<FileName>.csv is created when Start() is called and
+ *  appended to every time the action changes (action-to-action transitions and the
+ *  action/WAIT boundary), so most of the recording is on disk before playback ends.
  */
 UCLASS(ClassGroup = (Scenario), meta = (BlueprintSpawnableComponent))
 class UScenarioRunnerComponent : public UActorComponent
@@ -37,16 +40,15 @@ class UScenarioRunnerComponent : public UActorComponent
   public:
     UScenarioRunnerComponent();
 
-    /** Starts playback of the given steps, sampling positions every InSampleInterval seconds.
+    /** Starts playback of the given steps, sampling positions every InSampleInterval seconds and
+     *  writing them incrementally to Saved/Recordings/<InFileName>.csv.
      *  InMoveSpeed > 0 overrides the pawn's max walk/fly speed (cm/s) for the run. */
-    void Start(const TArray<FScenarioStep> &InSteps, float InSampleInterval, float InMoveSpeed);
+    void Start(const TArray<FScenarioStep> &InSteps, float InSampleInterval, float InMoveSpeed,
+               const FString &InFileName);
 
-    /** Writes the recorded samples as CSV to Saved/Recordings/<FileName>.csv. Returns the saved path or an empty string
-     * on failure. */
-    auto SaveRecording(const FString &FileName) const -> FString;
-
-    /** Returns the absolute CSV path Saved/Recordings/<sanitized FileName>.csv */
-    static auto MakeRecordingPath(const FString &FileName) -> FString;
+    /** Returns the absolute path of the CSV file being written by the current/last run,
+     *  or an empty string if writing it failed. */
+    auto GetRecordingPath() const -> const FString &;
 
     /** Fired once when playback has passed the end of the last step */
     UPROPERTY(BlueprintAssignable, Category = "Scenario")
@@ -97,14 +99,24 @@ class UScenarioRunnerComponent : public UActorComponent
     /** Returns the pawn currently possessed by the owning player controller */
     auto GetControlledPawn() const -> APawn *;
 
+    /** Creates (truncates) RecordingFilePath and writes the CSV header; clears it on failure */
+    void BeginRecordingFile(const FString &FileName);
+
+    /** Appends buffered Samples to RecordingFilePath and clears the buffer; call on every action
+     *  change so the file stays close to up to date, and once more when playback finishes */
+    void FlushSamples();
+
     /** Steps to play, sorted by time */
     TArray<FScenarioStep> Steps;
 
     /** Drone physics driver; active between Start() and the end of playback */
     FDronePhysics Physics;
 
-    /** Recorded position samples */
+    /** Position samples not yet flushed to RecordingFilePath */
     TArray<FPositionSample> Samples;
+
+    /** Absolute path of the CSV file being written this run; empty once writing has failed */
+    FString RecordingFilePath;
 
     /** Label broadcast for the last applied action */
     FString LastActionLabel;

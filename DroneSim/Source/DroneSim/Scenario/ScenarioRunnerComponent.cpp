@@ -24,7 +24,8 @@ UScenarioRunnerComponent::UScenarioRunnerComponent()
     PrimaryComponentTick.bStartWithTickEnabled = false;
 }
 
-void UScenarioRunnerComponent::Start(const TArray<FScenarioStep> &InSteps, float InSampleInterval, float InMoveSpeed)
+void UScenarioRunnerComponent::Start(const TArray<FScenarioStep> &InSteps, float InSampleInterval, float InMoveSpeed,
+                                     const FString &InFileName)
 {
     Steps = InSteps;
     SampleInterval = FMath::Max(InSampleInterval, 0.01f);
@@ -36,6 +37,8 @@ void UScenarioRunnerComponent::Start(const TArray<FScenarioStep> &InSteps, float
     CurrentStepIndex = 0;
     StepElapsed = 0.0f;
     SettleElapsed = 0.0f;
+
+    BeginRecordingFile(InFileName);
 
     // apply drone flight physics (inertia, drift, body tilt) for the run
     if (ACharacter *Character = Cast<ACharacter>(GetControlledPawn()))
@@ -77,8 +80,9 @@ void UScenarioRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
         bRunning = false;
         SetComponentTickEnabled(false);
         Physics.End();
+        FlushSamples();
         FScenarioLog::Info(
-            FString::Printf(TEXT("Playback finished: elapsed=%.2fs samples=%d"), Elapsed, Samples.Num()));
+            FString::Printf(TEXT("Playback finished: elapsed=%.2fs recording=%s"), Elapsed, *RecordingFilePath));
         OnScenarioFinished.Broadcast();
     }
 }
@@ -147,6 +151,9 @@ void UScenarioRunnerComponent::PublishActionLabel(const FString &Label)
         return;
     }
 
+    // append everything sampled under the previous action before switching to the new one
+    FlushSamples();
+
     LastActionLabel = Label;
     const APawn *Pawn = GetControlledPawn();
     FScenarioLog::Info(FString::Printf(TEXT("t=%.2fs action=%s pawn at %s"), Elapsed, *Label,
@@ -167,7 +174,7 @@ void UScenarioRunnerComponent::ApplyAction(EScenarioAction Action, APawn &Pawn, 
     case EScenarioAction::Right:
         Pawn.AddMovementInput(Right, 1.0f);
         break;
-    case EScenarioAction::Frontward:
+    case EScenarioAction::Forward:
         Pawn.AddMovementInput(Forward, 1.0f);
         break;
     case EScenarioAction::Backward:
@@ -202,25 +209,54 @@ void UScenarioRunnerComponent::SamplePosition()
     }
 }
 
-auto UScenarioRunnerComponent::MakeRecordingPath(const FString &FileName) -> FString
+auto UScenarioRunnerComponent::GetRecordingPath() const -> const FString &
+{
+    return RecordingFilePath;
+}
+
+void UScenarioRunnerComponent::BeginRecordingFile(const FString &FileName)
 {
     FString CleanName = FPaths::MakeValidFileName(FileName.TrimStartAndEnd());
     if (CleanName.IsEmpty())
     {
         CleanName = TEXT("recording");
     }
+    RecordingFilePath =
+        FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Recordings") / CleanName + TEXT(".csv"));
 
-    return FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Recordings") / CleanName + TEXT(".csv"));
+    if (!IFileManager::Get().MakeDirectory(*FPaths::GetPath(RecordingFilePath), true))
+    {
+        FScenarioLog::Error(FString::Printf(TEXT("Failed to create recording directory: %s (%s)"),
+                                            *FPaths::GetPath(RecordingFilePath), *FScenarioLog::SystemError()));
+        RecordingFilePath.Reset();
+        return;
+    }
+
+    static const TCHAR *Header = TEXT("time,elapsed,action,lat,lon,alt_m\n");
+    if (!FFileHelper::SaveStringToFile(Header, *RecordingFilePath))
+    {
+        FScenarioLog::Error(FString::Printf(TEXT("Failed to create recording file: %s (%s)"), *RecordingFilePath,
+                                            *FScenarioLog::SystemError()));
+        RecordingFilePath.Reset();
+        return;
+    }
+
+    FScenarioLog::Info(FString::Printf(TEXT("Recording to %s"), *RecordingFilePath));
 }
 
-auto UScenarioRunnerComponent::SaveRecording(const FString &FileName) const -> FString
+void UScenarioRunnerComponent::FlushSamples()
 {
+    if (RecordingFilePath.IsEmpty() || Samples.IsEmpty())
+    {
+        return;
+    }
+
     // flat-earth conversion around the origin; UE units are cm with +X = east, +Y = south (left-handed)
     constexpr double MetersPerDegreeLatitude = 111320.0;
     const double MetersPerDegreeLongitude =
         MetersPerDegreeLatitude * FMath::Cos(FMath::DegreesToRadians(OriginLatitude));
 
-    FString CsvText = TEXT("time,elapsed,action,lat,lon,alt_m\n");
+    FString CsvText;
     for (const FPositionSample &Sample : Samples)
     {
         const double EastMeters = Sample.Location.X / 100.0;
@@ -233,24 +269,16 @@ auto UScenarioRunnerComponent::SaveRecording(const FString &FileName) const -> F
                                    Sample.Time, *Sample.Action, Latitude, Longitude, AltitudeMeters);
     }
 
-    const FString FilePath = MakeRecordingPath(FileName);
-    if (!IFileManager::Get().MakeDirectory(*FPaths::GetPath(FilePath), true))
+    if (!FFileHelper::SaveStringToFile(CsvText, *RecordingFilePath, FFileHelper::EEncodingOptions::AutoDetect,
+                                       &IFileManager::Get(), FILEWRITE_Append))
     {
-        FScenarioLog::Error(FString::Printf(TEXT("Failed to create recording directory: %s (%s)"),
-                                            *FPaths::GetPath(FilePath), *FScenarioLog::SystemError()));
-        return FString();
+        FScenarioLog::Error(FString::Printf(TEXT("Failed to append recording: %s (%s)"), *RecordingFilePath,
+                                            *FScenarioLog::SystemError()));
+        RecordingFilePath.Reset();
+        return;
     }
 
-    if (!FFileHelper::SaveStringToFile(CsvText, *FilePath))
-    {
-        FScenarioLog::Error(
-            FString::Printf(TEXT("Failed to save recording: %s (%s)"), *FilePath, *FScenarioLog::SystemError()));
-        return FString();
-    }
-
-    FScenarioLog::Info(
-        FString::Printf(TEXT("Saved recording: %s (samples=%d, %d bytes)"), *FilePath, Samples.Num(), CsvText.Len()));
-    return FilePath;
+    Samples.Reset();
 }
 
 auto UScenarioRunnerComponent::GetControlledPawn() const -> APawn *
