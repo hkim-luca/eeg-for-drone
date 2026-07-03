@@ -63,6 +63,11 @@
 			"Enabled": true,
 			"TargetAllowList": [
 				"Editor"
+			],
+			"SupportedTargetPlatforms": [
+				"Win64",
+				"Linux",
+				"Mac"
 			]
 		},
 		{
@@ -91,6 +96,11 @@
 			"Enabled": true,
 			"TargetAllowList": [
 				"Editor"
+			],
+			"SupportedTargetPlatforms": [
+				"Win64",
+				"Linux",
+				"Mac"
 			]
 		},
 		{
@@ -105,6 +115,11 @@
 			"Enabled": true,
 			"TargetAllowList": [
 				"Editor"
+			],
+			"SupportedTargetPlatforms": [
+				"Win64",
+				"Mac",
+				"Linux"
 			]
 		},
 		{
