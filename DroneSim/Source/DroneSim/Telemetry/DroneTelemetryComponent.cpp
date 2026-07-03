@@ -35,14 +35,14 @@ void UDroneTelemetryComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
     YawDeg = Rotation.Yaw;
     HeadingDeg = FMath::Fmod(static_cast<double>(YawDeg) + 360.0, 360.0);
 
-    // flat-earth conversion around the origin; UE units are cm with +X = east, +Y = south
-    // (left-handed), matching ScenarioRunnerComponent::FlushSamples()
+    // flat-earth conversion around the origin; UE units are cm with +X = north, +Y = east,
+    // matching the pawn's spawn facing (Yaw 0 faces +X, i.e. north)
     constexpr double MetersPerDegreeLatitude = 111320.0;
     const double MetersPerDegreeLongitude =
         MetersPerDegreeLatitude * FMath::Cos(FMath::DegreesToRadians(OriginLatitude));
 
-    const double EastMeters = Location.X / 100.0;
-    const double NorthMeters = -Location.Y / 100.0;
+    const double NorthMeters = Location.X / 100.0;
+    const double EastMeters = Location.Y / 100.0;
     Latitude = OriginLatitude + NorthMeters / MetersPerDegreeLatitude;
     Longitude = OriginLongitude + EastMeters / MetersPerDegreeLongitude;
     AltitudeMslMeters = OriginAltitude + AltitudeMeters;
