@@ -6,6 +6,8 @@
 
 #include "DroneSimPlayerController.generated.h"
 
+class UEegHudWidget;
+class UEegRunnerComponent;
 class UInputMappingContext;
 class UUserWidget;
 class UScenarioHudWidget;
@@ -72,6 +74,11 @@ class ADroneSimPlayerController : public APlayerController
     UPROPERTY(EditAnywhere, Category = "Scenario|UI")
     TSubclassOf<UScenarioHudWidget> HudWidgetClass;
 
+    /** Widget class for the EEG running-mode overlay (electrode graphs, status line);
+     *  point this to a Widget Blueprint to design it in the editor */
+    UPROPERTY(EditAnywhere, Category = "Scenario|UI")
+    TSubclassOf<UEegHudWidget> EegHudWidgetClass;
+
     /** Pointer to the initial menu screen widget */
     UPROPERTY()
     TObjectPtr<UScenarioMenuWidget> MenuWidget;
@@ -80,16 +87,35 @@ class ADroneSimPlayerController : public APlayerController
     UPROPERTY()
     TObjectPtr<UScenarioHudWidget> HudWidget;
 
+    /** Pointer to the EEG running-mode overlay widget */
+    UPROPERTY()
+    TObjectPtr<UEegHudWidget> EegHudWidget;
+
     /** Component that plays scenarios and records positions */
     UPROPERTY(VisibleAnywhere, Category = "Scenario")
     TObjectPtr<UScenarioRunnerComponent> ScenarioRunner;
 
+    /** Component that drives the pawn from EEG server inferences in running mode */
+    UPROPERTY(VisibleAnywhere, Category = "Scenario")
+    TObjectPtr<UEegRunnerComponent> EegRunner;
+
     /** Creates (if needed) and shows the initial menu screen */
     void ShowMenu();
+
+    /** Creates the action-label HUD and adds it to the viewport; false if the class is unset */
+    auto CreateActionHud(const FString &InitialLabel) -> bool;
 
     /** Loads Content/Scenarios/Scenario.json and starts it when the Recording button is clicked */
     UFUNCTION()
     void HandleRecordingRequested();
+
+    /** Starts EEG running mode when R is pressed on the initial screen */
+    UFUNCTION()
+    void HandleRunningRequested();
+
+    /** Stops EEG running mode and returns to the initial screen */
+    UFUNCTION()
+    void HandleEegStopRequested();
 
     /** Saves the CSV and returns to the initial screen when the scenario ends */
     UFUNCTION()

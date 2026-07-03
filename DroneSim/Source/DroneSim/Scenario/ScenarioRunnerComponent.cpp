@@ -6,6 +6,7 @@
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "ScenarioActionInput.h"
 #include "ScenarioLog.h"
 #include "ScenarioTime.h"
 
@@ -112,7 +113,7 @@ void UScenarioRunnerComponent::UpdatePlayback(float DeltaTime)
     {
         const APlayerController *Controller = Cast<APlayerController>(GetOwner());
         const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
-        ApplyAction(Step.Action, *Pawn, YawRotation);
+        ApplyScenarioActionInput(Step.Action, *Pawn, YawRotation);
         PublishActionLabel(ScenarioActionName(Step.Action));
 
         StepElapsed += DeltaTime;
@@ -159,31 +160,6 @@ void UScenarioRunnerComponent::PublishActionLabel(const FString &Label)
     FScenarioLog::Info(FString::Printf(TEXT("t=%.2fs action=%s pawn at %s"), Elapsed, *Label,
                                        Pawn != nullptr ? *Pawn->GetActorLocation().ToString() : TEXT("-")));
     OnActionChanged.Broadcast(Label);
-}
-
-void UScenarioRunnerComponent::ApplyAction(EScenarioAction Action, APawn &Pawn, const FRotator &YawRotation)
-{
-    const FVector Forward = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-    const FVector Right = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
-    switch (Action)
-    {
-    case EScenarioAction::Left:
-        Pawn.AddMovementInput(Right, -1.0f);
-        break;
-    case EScenarioAction::Right:
-        Pawn.AddMovementInput(Right, 1.0f);
-        break;
-    case EScenarioAction::Forward:
-        Pawn.AddMovementInput(Forward, 1.0f);
-        break;
-    case EScenarioAction::Backward:
-        Pawn.AddMovementInput(Forward, -1.0f);
-        break;
-    case EScenarioAction::Stop:
-        // no movement input; braking stops the pawn
-        break;
-    }
 }
 
 void UScenarioRunnerComponent::SamplePosition()

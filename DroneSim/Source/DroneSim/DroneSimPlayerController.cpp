@@ -1,6 +1,8 @@
 #include "DroneSimPlayerController.h"
 #include "Blueprint/UserWidget.h"
 #include "DroneSim.h"
+#include "Eeg/EegHudWidget.h"
+#include "Eeg/EegRunnerComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
 #include "EnhancedInputSubsystems.h"
@@ -17,6 +19,7 @@
 ADroneSimPlayerController::ADroneSimPlayerController()
 {
     ScenarioRunner = CreateDefaultSubobject<UScenarioRunnerComponent>(TEXT("ScenarioRunner"));
+    EegRunner = CreateDefaultSubobject<UEegRunnerComponent>(TEXT("EegRunner"));
 }
 
 void ADroneSimPlayerController::BeginPlay()
@@ -77,6 +80,7 @@ void ADroneSimPlayerController::ShowMenu()
         }
 
         MenuWidget->OnRecordingRequested.AddDynamic(this, &ADroneSimPlayerController::HandleRecordingRequested);
+        MenuWidget->OnRunningRequested.AddDynamic(this, &ADroneSimPlayerController::HandleRunningRequested);
     }
 
     MenuWidget->AddToViewport(1);
@@ -117,17 +121,9 @@ void ADroneSimPlayerController::HandleRecordingRequested()
     SetShowMouseCursor(false);
 
     // show the current action at the top center of the screen while playing
-    HudWidget = CreateWidget<UScenarioHudWidget>(this, HudWidgetClass);
-    if (HudWidget != nullptr)
+    if (CreateActionHud(TEXT("WAIT")))
     {
-        HudWidget->AddToViewport(10);
-        HudWidget->SetActionLabel(TEXT("WAIT"));
         ScenarioRunner->OnActionChanged.AddDynamic(HudWidget.Get(), &UScenarioHudWidget::SetActionLabel);
-    }
-    else
-    {
-        FScenarioLog::Error(TEXT("Could not spawn scenario HUD widget. Set HudWidgetClass to a Widget Blueprint "
-                                 "on the player controller; playback continues without the HUD."));
     }
 
     // file name: recording start time in KST (yyyymmdd_hhmmss); the CSV
@@ -136,6 +132,65 @@ void ADroneSimPlayerController::HandleRecordingRequested()
 
     FScenarioLog::Info(FString::Printf(TEXT("Starting scenario: %s"), *LoadedScenario.FilePath));
     ScenarioRunner->Start(LoadedScenario.Steps, RecordingResolution, ScenarioMoveSpeed, RecordingFileName);
+}
+
+auto ADroneSimPlayerController::CreateActionHud(const FString &InitialLabel) -> bool
+{
+    HudWidget = CreateWidget<UScenarioHudWidget>(this, HudWidgetClass);
+    if (HudWidget == nullptr)
+    {
+        FScenarioLog::Error(TEXT("Could not spawn scenario HUD widget. Set HudWidgetClass to a Widget Blueprint "
+                                 "on the player controller; the run continues without the action label."));
+        return false;
+    }
+
+    HudWidget->AddToViewport(10);
+    HudWidget->SetActionLabel(InitialLabel);
+    return true;
+}
+
+void ADroneSimPlayerController::HandleRunningRequested()
+{
+    FScenarioLog::Info(TEXT("EEG running mode requested"));
+
+    MenuWidget->RemoveFromParent();
+
+    // action label HUD, shared with recording mode but fed by the EEG runner
+    if (CreateActionHud(TEXT("CONNECTING")))
+    {
+        EegRunner->OnActionChanged.AddDynamic(HudWidget.Get(), &UScenarioHudWidget::SetActionLabel);
+    }
+
+    // EEG overlay: electrode graphs top-right, status line, and the stop shortcut
+    EegHudWidget = CreateWidget<UEegHudWidget>(this, EegHudWidgetClass);
+    if (EegHudWidget != nullptr)
+    {
+        EegHudWidget->AddToViewport(11);
+        EegHudWidget->SetRunner(EegRunner);
+        EegHudWidget->OnStopRequested.AddDynamic(this, &ADroneSimPlayerController::HandleEegStopRequested);
+
+        // same input setup as the menu: keyboard only, cursor locked so focus cannot be lost
+        SetInputMode(FInputModeUIOnly().SetLockMouseToViewportBehavior(EMouseLockMode::LockAlways));
+        SetShowMouseCursor(false);
+        EegHudWidget->SetKeyboardFocus();
+    }
+    else
+    {
+        FScenarioLog::Error(TEXT("Could not spawn EEG HUD widget. Set EegHudWidgetClass to a Widget Blueprint "
+                                 "on the player controller; running mode continues without graphs, stop via "
+                                 "quitting the game."));
+        SetInputMode(FInputModeGameOnly());
+        SetShowMouseCursor(false);
+    }
+
+    EegRunner->Start(ScenarioMoveSpeed);
+}
+
+void ADroneSimPlayerController::HandleEegStopRequested()
+{
+    FScenarioLog::Info(TEXT("EEG running mode stop requested"));
+    EegRunner->Stop();
+    ReturnToInitialScreen();
 }
 
 void ADroneSimPlayerController::HandleScenarioFinished()

@@ -1,0 +1,56 @@
+// Wire schema of the DroneSim <-> EEG server link.
+// Single source of truth: the Python side uses code generated from this file
+// (eeg_server/eeg_link_pb2.py); the UE side implements the same wire format by
+// hand in DroneSim/Source/DroneSim/Eeg/EegProto.cpp to avoid a protoc/libprotobuf
+// dependency in the engine build. Keep all three in sync.
+//
+// Framing over TCP: each message is prefixed with its byte length as a
+// 4-byte little-endian unsigned integer.
+//
+// Regenerate the Python module with:
+//   python -m grpc_tools.protoc -I proto --python_out=eeg_server proto/eeg_link.proto
+
+syntax = "proto3";
+
+package eeg;
+
+// One 100 ms block of simulated EEG samples (DroneSim -> server).
+message EegFrame {
+  int64 seq = 1;             // monotonic frame number for loss detection
+  double t_sent_ms = 2;      // Unix epoch ms when DroneSim sent the frame
+  int32 rate = 3;            // sample rate in Hz (250)
+  int32 channels = 4;        // electrode count (32)
+  string true_action = 5;    // ground truth embedded by the simulator
+  repeated float data = 6;   // sample-major: data[sample * channels + channel]
+}
+
+// Confirmation that an inferred action reached the pawn (DroneSim -> server).
+message ControlAck {
+  int64 action_seq = 1;      // ActionResult.action_seq being confirmed
+  double t_control_ms = 2;   // Unix epoch ms when the movement input was applied
+}
+
+// Everything DroneSim sends.
+message ClientMessage {
+  oneof msg {
+    EegFrame eeg = 1;
+    ControlAck ack = 2;
+  }
+}
+
+// One classification result (server -> DroneSim).
+message ActionResult {
+  int64 action_seq = 1;         // monotonic, echoed back in ControlAck
+  int64 eeg_seq = 2;            // EegFrame.seq this result was inferred from
+  string action = 3;            // LEFT, RIGHT, FORWARD, BACKWARD or STOP
+  float confidence = 4;         // classifier confidence in [0, 1]
+  double t_infer_ms = 5;        // Unix epoch ms when the inference finished
+  float accuracy_percent = 6;   // rolling EEG command classification accuracy
+}
+
+// Everything the server sends.
+message ServerMessage {
+  oneof msg {
+    ActionResult action = 1;
+  }
+}

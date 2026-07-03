@@ -7,12 +7,14 @@
 class UTextBlock;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRecordingRequested);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRunningRequested);
 
 /**
  *  Initial screen widget shown before scenario playback; the CSV file name is
  *  generated from the save timestamp, so no file name input is shown.
- *  Recording starts with the Space bar only (no mouse input); the widget takes
- *  keyboard focus while shown so it can receive the key press.
+ *  The two modes start from the keyboard only (no mouse input): Space starts
+ *  scenario recording, R starts EEG running mode; the widget takes keyboard
+ *  focus while shown so it can receive the key presses.
  *  The layout is designed in a Widget Blueprint that uses this class as its parent;
  *  the designed text block must be named WarningText to bind.
  */
@@ -25,6 +27,10 @@ class UScenarioMenuWidget : public UUserWidget
     /** Fired when the Space bar is pressed to start recording */
     UPROPERTY(BlueprintAssignable, Category = "Scenario")
     FOnRecordingRequested OnRecordingRequested;
+
+    /** Fired when R is pressed to start EEG running mode */
+    UPROPERTY(BlueprintAssignable, Category = "Scenario")
+    FOnRunningRequested OnRunningRequested;
 
     /** Shows a warning line (e.g. scenario load errors) */
     UFUNCTION(BlueprintCallable, Category = "Scenario")

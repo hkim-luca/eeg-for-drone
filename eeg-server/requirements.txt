@@ -1,0 +1,5 @@
+# runtime
+protobuf>=6.33,<7
+
+# development only: regenerating eeg_server/eeg_link_pb2.py from proto/eeg_link.proto
+# grpcio-tools>=1.75

@@ -15,14 +15,17 @@ public class DroneSim : ModuleRules
 			"UMG",
 			"Slate",
 			"SlateCore",
-			"Json"
+			"Json",
+			"Sockets",
+			"Networking"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"DroneSim",
-			"DroneSim/Scenario"
+			"DroneSim/Scenario",
+			"DroneSim/Eeg"
 		});
 
 		// Uncomment if you are using Slate UI

@@ -87,9 +87,6 @@ class UScenarioRunnerComponent : public UActorComponent
     /** Advances the step state machine and applies the current step's movement input */
     void UpdatePlayback(float DeltaTime);
 
-    /** Applies one action as movement input relative to the controller's yaw rotation */
-    static void ApplyAction(EScenarioAction Action, APawn &Pawn, const FRotator &YawRotation);
-
     /** Logs and broadcasts the action label when it changes */
     void PublishActionLabel(const FString &Label);
 

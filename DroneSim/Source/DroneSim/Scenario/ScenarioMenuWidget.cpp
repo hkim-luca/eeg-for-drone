@@ -17,6 +17,12 @@ auto UScenarioMenuWidget::NativeOnKeyDown(const FGeometry &InGeometry, const FKe
         return FReply::Handled();
     }
 
+    if (InKeyEvent.GetKey() == EKeys::R)
+    {
+        OnRunningRequested.Broadcast();
+        return FReply::Handled();
+    }
+
     return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
 }
 
