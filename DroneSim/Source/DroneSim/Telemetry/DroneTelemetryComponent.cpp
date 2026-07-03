@@ -33,16 +33,19 @@ void UDroneTelemetryComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
     RollDeg = Rotation.Roll;
     PitchDeg = Rotation.Pitch;
     YawDeg = Rotation.Yaw;
-    HeadingDeg = FMath::Fmod(static_cast<double>(YawDeg) + 360.0, 360.0);
 
-    // flat-earth conversion around the origin; UE units are cm with +X = north, +Y = east,
-    // matching the pawn's spawn facing (Yaw 0 faces +X, i.e. north)
+    // compass azimuth from true north (0 = north, 90 = east, clockwise), not the raw engine
+    // Yaw: Yaw 0 faces world +X, which is east under the +X=east/+Y=south convention below,
+    // so true north sits at Yaw -90 and the azimuth is offset by +90 from Yaw
+    HeadingDeg = FMath::Fmod(static_cast<double>(YawDeg) + 90.0 + 360.0, 360.0);
+
+    // flat-earth conversion around the origin; UE units are cm with +X = east, +Y = south (left-handed)
     constexpr double MetersPerDegreeLatitude = 111320.0;
     const double MetersPerDegreeLongitude =
         MetersPerDegreeLatitude * FMath::Cos(FMath::DegreesToRadians(OriginLatitude));
 
-    const double NorthMeters = Location.X / 100.0;
-    const double EastMeters = Location.Y / 100.0;
+    const double EastMeters = Location.X / 100.0;
+    const double NorthMeters = -Location.Y / 100.0;
     Latitude = OriginLatitude + NorthMeters / MetersPerDegreeLatitude;
     Longitude = OriginLongitude + EastMeters / MetersPerDegreeLongitude;
     AltitudeMslMeters = OriginAltitude + AltitudeMeters;

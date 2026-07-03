@@ -136,8 +136,8 @@ auto SDroneMinimapPanel::OnPaint(const FPaintArgs &Args, const FGeometry &Allott
                                      TrailScreenPoints, ESlateDrawEffect::None, TrailColor, false, 2.0f);
     }
 
-    // drone icon: circle at the current position plus a heading tick. HeadingDeg is the actor's
-    // Yaw, and Yaw 0 faces north (screen up), so the tick direction is (sin, -cos) of that angle.
+    // drone icon: circle at the current position plus a heading tick. HeadingDeg is the compass
+    // azimuth from true north (0 = north = screen up), so the tick direction is (sin, -cos) of it.
     const FVector2f IconCenter = WorldToScreen(CurrentPosition);
     TArray<FVector2f> CirclePoints;
     CirclePoints.Reserve(DroneIconCircleSegments + 1);
