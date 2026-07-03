@@ -169,10 +169,6 @@ void ADroneSimPlayerController::StartEegRunningMode()
     SetInputMode(FInputModeGameOnly());
     SetShowMouseCursor(false);
 
-    // the scenario action-label HUD (WBP_ScenarioHud) is recording-mode only; EEG running
-    // mode shows the same information, plus per-action probabilities, in EegHudWidget's
-    // ProbabilityBox, so it is deliberately not created here.
-
     // EEG overlay: electrode graphs top-right, connection state, flight status bottom-left,
     // flight-trail minimap bottom-right
     EegHudWidget = CreateWidget<UEegHudWidget>(this, EegHudWidgetClass);
