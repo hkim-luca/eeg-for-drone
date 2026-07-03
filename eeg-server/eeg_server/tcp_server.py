@@ -1,9 +1,9 @@
 """Asyncio TCP endpoint DroneSim connects to.
 
 One DroneSim client at a time: each ``EegFrame`` is classified immediately and
-the resulting ``ActionResult`` (including the rolling accuracy) is sent back;
-``ControlAck`` messages close the latency loop. Metrics and dashboard state
-are updated on the way. Messages are length-prefixed protobuf (see protocol.py).
+the resulting ``ActionResult`` is sent back; ``ControlAck`` messages close the
+latency loop. Metrics and dashboard state are updated on the way. Messages are
+length-prefixed protobuf (see protocol.py).
 """
 
 from __future__ import annotations
@@ -78,8 +78,8 @@ class EegTcpServer:
         moment = now_kst()
         probabilities = [result.probabilities[action] for action in config.ACTION_PROB_ORDER]
 
-        self._state.metrics.on_frame(frame.seq, frame.true_action, result.action)
-        self._state.on_frame(data, frame.channels, frame.true_action)
+        self._state.metrics.on_frame(frame.seq)
+        self._state.on_frame(data, frame.channels)
         self._state.on_inference(result.action, result.confidence, probabilities, moment.strftime("%H:%M:%S"))
 
         action_seq = self._next_action_seq
@@ -90,12 +90,11 @@ class EegTcpServer:
         metrics = self._state.metrics.snapshot()
         latency = metrics["latency_ms"]
         reliability = metrics["reliability"]
-        self._csv_log.log_row(moment, frame.true_action, result.action, result.confidence,
+        self._csv_log.log_row(moment, result.action, result.confidence,
                               [100.0 * value for value in probabilities],
-                              self._state.metrics.accuracy_percent(),
                               latency["infer_to_control"]["last"], latency["device_to_control"]["last"],
                               reliability["frame_percent"], reliability["ack_percent"])
 
         writer.write(build_action_payload(action_seq, frame.seq, result.action, result.confidence, infer_ms,
-                                          self._state.metrics.accuracy_percent(), probabilities))
+                                          probabilities))
         await writer.drain()

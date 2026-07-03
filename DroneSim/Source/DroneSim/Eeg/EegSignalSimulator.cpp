@@ -60,7 +60,6 @@ void FEegSignalSimulator::Start(int32 Seed)
 
     PendingFrame = FEegFrame();
     PendingFrame.Seq = NextSeq;
-    PendingFrame.TrueAction = DemoScript[0].Action;
     PendingFrame.Samples.Reserve(EegConfig::SamplesPerFrame * EegConfig::ChannelCount);
 }
 
@@ -82,7 +81,7 @@ void FEegSignalSimulator::Tick(float DeltaTime, TArray<FEegFrame> &OutFrames)
     }
 }
 
-auto FEegSignalSimulator::GetTrueAction() const -> EScenarioAction
+auto FEegSignalSimulator::GetActiveAction() const -> EScenarioAction
 {
     return DemoScript[ScriptIndex].Action;
 }
@@ -99,7 +98,7 @@ auto FEegSignalSimulator::GetGraphWriteIndex() const -> int32
 
 void FEegSignalSimulator::GenerateSample()
 {
-    const int32 ActiveGroupStart = EegConfig::GroupStartChannel(GetTrueAction());
+    const int32 ActiveGroupStart = EegConfig::GroupStartChannel(GetActiveAction());
     const auto Time = static_cast<float>(SignalTime);
 
     for (int32 Channel = 0; Channel < EegConfig::ChannelCount; ++Channel)
@@ -132,7 +131,7 @@ void FEegSignalSimulator::GenerateSample()
 void FEegSignalSimulator::OnFrameBoundary()
 {
     // move the demo script forward; frames never straddle an action change by more
-    // than one frame, which the accuracy metric tolerates as noise
+    // than one frame
     if (ScriptElapsed >= DemoScript[ScriptIndex].Seconds)
     {
         ScriptElapsed = 0.0;
@@ -151,7 +150,6 @@ void FEegSignalSimulator::OnFrameBoundary()
 
     PendingFrame = FEegFrame();
     PendingFrame.Seq = NextSeq;
-    PendingFrame.TrueAction = GetTrueAction();
     PendingFrame.Samples.Reserve(EegConfig::SamplesPerFrame * EegConfig::ChannelCount);
 }
 

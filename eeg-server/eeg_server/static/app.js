@@ -1,13 +1,10 @@
-/* Polls /api/state and renders the KPI tiles, the accuracy sparkline and the
- * 32-channel waveform strips. Single-hue rendering (series-1) per the palette:
- * channels are one signal source, not distinct series. */
+/* Polls /api/state and renders the KPI tiles and the 32-channel waveform
+ * strips. Single-hue rendering (series-1) per the palette: channels are one
+ * signal source, not distinct series. */
 "use strict";
 
 const POLL_INTERVAL_MS = 500;
-const ACCURACY_HISTORY = 120; // ~1 minute of sparkline
 const FULL_SCALE_UV = 40;     // waveform amplitude mapped to a strip half-height
-
-const accuracyHistory = [];
 
 function css(name) {
   return getComputedStyle(document.body).getPropertyValue(name).trim();
@@ -30,9 +27,6 @@ function renderConnection(connected) {
 
 function renderMetrics(state) {
   const metrics = state.metrics;
-  setText("accuracy", fmt(metrics.accuracy.percent));
-  setText("accuracy-window", String(metrics.accuracy.window));
-
   const infer = metrics.latency_ms.infer_to_control;
   setText("latency-mean", fmt(infer.mean));
   setText("latency-last", fmt(infer.last));
@@ -50,30 +44,8 @@ function renderMetrics(state) {
   setText("frames-lost", String(reliability.frames_lost));
   setText("ack-percent", fmt(reliability.ack_percent));
 
-  setText("true-action", state.true_action);
   setText("inferred-action", state.inferred_action);
   setText("confidence", state.confidence.toFixed(2));
-}
-
-function drawSparkline(percent) {
-  accuracyHistory.push(percent);
-  if (accuracyHistory.length > ACCURACY_HISTORY) accuracyHistory.shift();
-
-  const canvas = document.getElementById("accuracy-spark");
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (accuracyHistory.length < 2) return;
-
-  ctx.strokeStyle = css("--series-1");
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  const stepX = canvas.width / (ACCURACY_HISTORY - 1);
-  accuracyHistory.forEach((value, index) => {
-    const x = index * stepX;
-    const y = canvas.height - 2 - (value / 100) * (canvas.height - 4);
-    if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
 }
 
 function kstTime(date) {
@@ -148,7 +120,6 @@ async function poll() {
     const state = await response.json();
     renderConnection(state.connected);
     renderMetrics(state);
-    drawSparkline(state.metrics.accuracy.percent);
     drawProbChart(state.prob_order, state.prob_history, state.prob_times);
     drawWaveforms(state.waveforms);
   } catch (error) {

@@ -1,9 +1,7 @@
 """Evaluation metrics of the EEG pipeline, computed server-side.
 
-Three metrics are tracked, matching the project's evaluation criteria:
+Two metrics are tracked, matching the project's evaluation criteria:
 
-* **accuracy** - EEG command classification accuracy: inferred action vs the
-  ground truth DroneSim embeds in each simulated frame.
 * **latency** - real-time responsiveness: inference finished -> pawn control
   applied (from the ack), plus the full device -> control path.
 * **reliability** - communication reliability of the device -> DroneSim ->
@@ -32,7 +30,6 @@ class MetricsStore:
     """Rolling metrics; single-threaded (owned by the asyncio loop)."""
 
     def __init__(self) -> None:
-        self._accuracy_window: Deque[bool] = deque(maxlen=config.ACCURACY_WINDOW)
         self._infer_to_control_ms: Deque[float] = deque(maxlen=config.LATENCY_WINDOW)
         self._device_to_control_ms: Deque[float] = deque(maxlen=config.LATENCY_WINDOW)
         self._pending_actions: dict[int, PendingAction] = {}
@@ -42,14 +39,13 @@ class MetricsStore:
         self.actions_sent: int = 0
         self.acks_received: int = 0
 
-    def on_frame(self, seq: int, true_action: str, inferred_action: str) -> None:
-        """Accounts one received frame and its classification result."""
+    def on_frame(self, seq: int) -> None:
+        """Accounts one received frame for loss/sequencing tracking."""
         self.frames_received += 1
         if self._last_frame_seq is not None and seq > self._last_frame_seq + 1:
             self.frames_lost += seq - self._last_frame_seq - 1
         if self._last_frame_seq is None or seq > self._last_frame_seq:
             self._last_frame_seq = seq
-        self._accuracy_window.append(inferred_action == true_action)
 
     def on_action_sent(self, action_seq: int, infer_ms: float, frame_sent_ms: float) -> None:
         """Registers a sent action so its ack can be matched later."""
@@ -69,10 +65,6 @@ class MetricsStore:
         self._infer_to_control_ms.append(control_ms - pending.infer_ms)
         self._device_to_control_ms.append(control_ms - pending.frame_sent_ms)
 
-    def accuracy_percent(self) -> float:
-        """Rolling classification accuracy, also sent to DroneSim with each action."""
-        return _percent(sum(self._accuracy_window), len(self._accuracy_window))
-
     def reset_stream(self) -> None:
         """Called when DroneSim reconnects; sequence numbering starts over."""
         self._last_frame_seq = None
@@ -81,10 +73,6 @@ class MetricsStore:
     def snapshot(self) -> dict[str, object]:
         """JSON-ready summary for the dashboard."""
         return {
-            "accuracy": {
-                "window": len(self._accuracy_window),
-                "percent": _percent(sum(self._accuracy_window), len(self._accuracy_window)),
-            },
             "latency_ms": {
                 "infer_to_control": _stats(self._infer_to_control_ms),
                 "device_to_control": _stats(self._device_to_control_ms),

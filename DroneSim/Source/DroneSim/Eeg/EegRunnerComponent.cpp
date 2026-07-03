@@ -162,8 +162,7 @@ void UEegRunnerComponent::PublishActionLabel(const FString &Label)
     }
 
     LastActionLabel = Label;
-    FScenarioLog::Info(
-        FString::Printf(TEXT("EEG action=%s (true=%s)"), *Label, *ScenarioActionName(Simulator.GetTrueAction())));
+    FScenarioLog::Info(FString::Printf(TEXT("EEG action=%s"), *Label));
     OnActionChanged.Broadcast(Label);
 }
 

@@ -18,12 +18,6 @@
 <main>
   <section class="kpi-row" aria-label="평가지표">
     <article class="tile">
-      <h2>EEG 명령 분류 정확도</h2>
-      <p class="value"><span id="accuracy">--</span><span class="unit">%</span></p>
-      <p class="sub">최근 <span id="accuracy-window">0</span> frame 기준</p>
-      <canvas id="accuracy-spark" width="220" height="36" aria-hidden="true"></canvas>
-    </article>
-    <article class="tile">
       <h2>실시간 반응속도 (추론&rarr;제어)</h2>
       <p class="value"><span id="latency-mean">--</span><span class="unit">ms</span></p>
       <p class="sub">last <span id="latency-last">--</span> ms &middot; p95 <span id="latency-p95">--</span> ms</p>
@@ -42,10 +36,6 @@
   </section>
 
   <section class="action-row" aria-label="추론 결과">
-    <article class="tile action-tile">
-      <h2>Ground Truth</h2>
-      <p class="action" id="true-action">-</p>
-    </article>
     <article class="tile action-tile">
       <h2>추론 결과</h2>
       <p class="action" id="inferred-action">-</p>

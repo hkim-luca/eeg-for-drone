@@ -44,9 +44,6 @@ STOP_BIAS: Final[float] = 1.25
 PROB_HISTORY_LENGTH: Final[int] = 300
 
 # --- metric windows ----------------------------------------------------------
-#: Frames kept for the rolling accuracy metric (~30 s at 10 frames/s).
-ACCURACY_WINDOW: Final[int] = 300
-
 #: Latency samples kept for the rolling latency statistics.
 LATENCY_WINDOW: Final[int] = 300
 

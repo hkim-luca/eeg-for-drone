@@ -21,9 +21,6 @@ class FEegSignalSimulator
     /** Advances the signal by DeltaTime and appends every completed frame to OutFrames */
     void Tick(float DeltaTime, TArray<FEegFrame> &OutFrames);
 
-    /** Ground-truth action currently embedded in the signal */
-    auto GetTrueAction() const -> EScenarioAction;
-
     /** Channel-major graph ring buffer: [Channel * GraphWindowSamples + Index], microvolts */
     auto GetGraphBuffer() const -> const TArray<float> &;
 
@@ -31,6 +28,10 @@ class FEegSignalSimulator
     auto GetGraphWriteIndex() const -> int32;
 
   private:
+    /** Action the demo script currently drives; used to pick which channel group's
+     *  amplitude is boosted while generating samples */
+    auto GetActiveAction() const -> EScenarioAction;
+
     /** Appends one multi-channel sample to the pending frame and the graph buffer */
     void GenerateSample();
 

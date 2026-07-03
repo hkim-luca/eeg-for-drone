@@ -20,7 +20,6 @@ message EegFrame {
   double t_sent_ms = 2;      // Unix epoch ms when DroneSim sent the frame
   int32 rate = 3;            // sample rate in Hz (250)
   int32 channels = 4;        // electrode count (32)
-  string true_action = 5;    // ground truth embedded by the simulator
   repeated float data = 6;   // sample-major: data[sample * channels + channel]
 }
 
@@ -45,7 +44,6 @@ message ActionResult {
   string action = 3;            // LEFT, RIGHT, FORWARD, BACKWARD or STOP
   float confidence = 4;         // probability of the winning action, in [0, 1]
   double t_infer_ms = 5;        // Unix epoch ms when the inference finished
-  float accuracy_percent = 6;   // rolling EEG command classification accuracy
 
   // Per-action probabilities in [0, 1] summing to ~1, in the fixed order
   // FORWARD, BACKWARD, LEFT, RIGHT, STOP (config.ACTION_PROB_ORDER / EegConfig::ProbOrder).

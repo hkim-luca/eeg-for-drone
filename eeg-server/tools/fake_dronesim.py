@@ -36,8 +36,8 @@ _DEMO_SCRIPT: Final[list[tuple[str, float]]] = [
 ]
 
 
-def _make_frame_data(true_action: str, base_time_s: float, rng: random.Random) -> list[float]:
-    boost_start = config.ACTION_GROUP_START.get(true_action, -1)
+def _make_frame_data(active_action: str, base_time_s: float, rng: random.Random) -> list[float]:
+    boost_start = config.ACTION_GROUP_START.get(active_action, -1)
     data: list[float] = []
     for sample in range(_SAMPLES_PER_FRAME):
         time_s = base_time_s + sample / config.SAMPLE_RATE_HZ
@@ -77,7 +77,6 @@ def main() -> int:
     rng = random.Random(1234)
     correct = 0
     total = 0
-    last_accuracy = 0.0
 
     with socket.create_connection((args.host, args.port), timeout=5.0) as sock:
         deadline = time.monotonic() + args.seconds
@@ -86,20 +85,18 @@ def main() -> int:
         script_elapsed = 0.0
 
         while time.monotonic() < deadline:
-            true_action = _DEMO_SCRIPT[script_index][0]
+            active_action = _DEMO_SCRIPT[script_index][0]
             message = pb.ClientMessage()
             message.eeg.seq = seq
             message.eeg.t_sent_ms = now_ms()
             message.eeg.rate = config.SAMPLE_RATE_HZ
             message.eeg.channels = config.CHANNEL_COUNT
-            message.eeg.true_action = true_action
-            message.eeg.data.extend(_make_frame_data(true_action, seq * _FRAME_INTERVAL_S, rng))
+            message.eeg.data.extend(_make_frame_data(active_action, seq * _FRAME_INTERVAL_S, rng))
             sock.sendall(frame_payload(message.SerializeToString()))
 
             action = _read_action(sock)
             total += 1
-            correct += int(action.action == true_action)
-            last_accuracy = action.accuracy_percent
+            correct += int(action.action == active_action)
 
             # confirm the control application, like the pawn tick does
             ack = pb.ClientMessage()
@@ -114,8 +111,8 @@ def main() -> int:
                 script_index = (script_index + 1) % len(_DEMO_SCRIPT)
             time.sleep(_FRAME_INTERVAL_S)
 
-    print(f"fake_dronesim: {total} frames, inferred==true {correct}/{total} "
-          f"({100.0 * correct / max(total, 1):.1f}%), server rolling accuracy {last_accuracy:.1f}%")
+    print(f"fake_dronesim: {total} frames, inferred==scripted {correct}/{total} "
+          f"({100.0 * correct / max(total, 1):.1f}%)")
     return 0
 
 

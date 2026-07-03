@@ -2,8 +2,7 @@
 
 Each protobuf message travels over TCP behind a 4-byte little-endian length
 prefix. DroneSim sends ``ClientMessage`` (EEG frames and control acks); the
-server answers with ``ServerMessage`` (action results including the rolling
-classification accuracy).
+server answers with ``ServerMessage`` (inferred action results).
 """
 
 from __future__ import annotations
@@ -56,7 +55,6 @@ def build_action_payload(
     action: str,
     confidence: float,
     infer_ms: float,
-    accuracy_percent: float,
     probabilities: list[float],
 ) -> bytes:
     """Serializes one framed ``ServerMessage`` carrying an ``ActionResult``.
@@ -67,7 +65,6 @@ def build_action_payload(
     message.action.action = action
     message.action.confidence = confidence
     message.action.t_infer_ms = infer_ms
-    message.action.accuracy_percent = accuracy_percent
     message.action.action_probs.extend(probabilities)
     return frame_payload(message.SerializeToString())
 

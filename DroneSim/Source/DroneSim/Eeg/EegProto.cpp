@@ -54,17 +54,6 @@ void AppendDoubleField(TArray<uint8> &Out, uint32 FieldNumber, double Value)
     }
 }
 
-void AppendStringField(TArray<uint8> &Out, uint32 FieldNumber, const FString &Value)
-{
-    if (!Value.IsEmpty())
-    {
-        const FTCHARToUTF8 Utf8(*Value);
-        AppendTag(Out, FieldNumber, WireLengthDelimited);
-        AppendVarint(Out, static_cast<uint64>(Utf8.Length()));
-        Out.Append(reinterpret_cast<const uint8 *>(Utf8.Get()), Utf8.Length());
-    }
-}
-
 void AppendPackedFloatField(TArray<uint8> &Out, uint32 FieldNumber, const TArray<float> &Values)
 {
     if (!Values.IsEmpty())
@@ -200,9 +189,6 @@ auto ParseActionResult(TConstArrayView<uint8> Bytes, FEegActionResult &OutResult
         case 5: // t_infer_ms
             bOk = Reader.ReadRaw(OutResult.InferMs);
             break;
-        case 6: // accuracy_percent
-            bOk = Reader.ReadRaw(OutResult.AccuracyPercent);
-            break;
         case 7: { // action_probs (packed floats in EegConfig::ProbOrder)
             TConstArrayView<uint8> View;
             bOk = Reader.ReadLengthDelimited(View) && View.Num() % sizeof(float) == 0;
@@ -239,7 +225,6 @@ auto EncodeEegFrame(const FEegFrame &Frame, double SentMs) -> TArray<uint8>
     AppendDoubleField(Inner, 2, SentMs);
     AppendVarintField(Inner, 3, EegConfig::SampleRateHz);
     AppendVarintField(Inner, 4, EegConfig::ChannelCount);
-    AppendStringField(Inner, 5, ScenarioActionName(Frame.TrueAction));
     AppendPackedFloatField(Inner, 6, Frame.Samples);
     return WrapAsEnvelope(1, Inner); // ClientMessage.eeg
 }

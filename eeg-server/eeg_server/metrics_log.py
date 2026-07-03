@@ -2,8 +2,8 @@
 
 One file per server run under ``logs/``, one row per inference result (10/s).
 The first column is the KST wall clock; the remaining columns mirror what the
-dashboard shows: ground truth, inferred action, per-action probabilities, the
-rolling accuracy and the latest latency/reliability figures.
+dashboard shows: inferred action, per-action probabilities and the latest
+latency/reliability figures.
 """
 
 from __future__ import annotations
@@ -19,9 +19,9 @@ KST: Final[datetime.timezone] = datetime.timezone(datetime.timedelta(hours=9), n
 _LOG_DIR: Final[Path] = Path(__file__).parent.parent / "logs"
 
 _HEADER: Final[str] = ",".join(
-    ["kst", "true_action", "inferred_action", "confidence"]
+    ["kst", "inferred_action", "confidence"]
     + [f"{action.lower()}_pct" for action in config.ACTION_PROB_ORDER]
-    + ["accuracy_pct", "infer_to_control_ms", "device_to_control_ms", "frame_reliability_pct", "ack_reliability_pct"]
+    + ["infer_to_control_ms", "device_to_control_ms", "frame_reliability_pct", "ack_reliability_pct"]
 )
 
 
@@ -45,11 +45,9 @@ class MetricsCsvLogger:
     def log_row(
         self,
         moment: datetime.datetime,
-        true_action: str,
         inferred_action: str,
         confidence: float,
         probabilities_pct: list[float],
-        accuracy_pct: float,
         infer_to_control_ms: float,
         device_to_control_ms: float,
         frame_reliability_pct: float,
@@ -58,9 +56,9 @@ class MetricsCsvLogger:
         """Writes one KST-stamped row; ``probabilities_pct`` follows ACTION_PROB_ORDER."""
         writer = self._ensure_file(moment)
         values = (
-            [format_kst(moment), true_action, inferred_action, f"{confidence:.4f}"]
+            [format_kst(moment), inferred_action, f"{confidence:.4f}"]
             + [f"{value:.2f}" for value in probabilities_pct]
-            + [f"{accuracy_pct:.2f}", f"{infer_to_control_ms:.2f}", f"{device_to_control_ms:.2f}",
+            + [f"{infer_to_control_ms:.2f}", f"{device_to_control_ms:.2f}",
                f"{frame_reliability_pct:.2f}", f"{ack_reliability_pct:.2f}"]
         )
         writer.write(",".join(values) + "\n")

@@ -27,7 +27,6 @@ class ServerState:
         ]
         self._downsample_phase = 0
         self._connected = False
-        self._true_action = _EMPTY_ACTION
         self._inferred_action = _EMPTY_ACTION
         self._confidence = 0.0
         #: One entry per inference result, ordered by config.ACTION_PROB_ORDER (percent).
@@ -39,14 +38,12 @@ class ServerState:
         with self._lock:
             self._connected = connected
             if not self._connected:
-                self._true_action = _EMPTY_ACTION
                 self._inferred_action = _EMPTY_ACTION
                 self._confidence = 0.0
 
-    def on_frame(self, data: list[float], channel_count: int, true_action: str) -> None:
+    def on_frame(self, data: list[float], channel_count: int) -> None:
         """Feeds the dashboard waveforms with a downsampled copy of one frame."""
         with self._lock:
-            self._true_action = true_action
             sample_count = len(data) // channel_count
             for sample in range(sample_count):
                 self._downsample_phase = (self._downsample_phase + 1) % config.GRAPH_DOWNSAMPLE
@@ -70,7 +67,6 @@ class ServerState:
         with self._lock:
             return {
                 "connected": self._connected,
-                "true_action": self._true_action,
                 "inferred_action": self._inferred_action,
                 "confidence": round(self._confidence, 3),
                 "sample_rate_hz": config.SAMPLE_RATE_HZ // config.GRAPH_DOWNSAMPLE,

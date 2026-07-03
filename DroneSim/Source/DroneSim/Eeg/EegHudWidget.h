@@ -17,7 +17,6 @@ class UVerticalBox;
  *   - ProbabilityBox (VerticalBox), top-left: filled by this class with one line per
  *     action (FORWARD/BACKWARD/LEFT/RIGHT/STOP %); the highest value is highlighted
  *   - ConnectionText (TextBlock): EEG server link state (green CONNECTED / red RECONNECTING)
- *  The rolling accuracy and the ground-truth action are shown on the web dashboard instead.
  */
 UCLASS(Abstract)
 class UEegHudWidget : public UUserWidget

@@ -67,9 +67,6 @@ struct FEegFrame
     /** Monotonic frame number, used by the server to detect dropped frames */
     int64 Seq = 0;
 
-    /** Ground-truth action embedded in the signal when the frame was generated */
-    EScenarioAction TrueAction = EScenarioAction::Stop;
-
     /** Sample-major data in microvolts: Samples[SampleIndex * ChannelCount + Channel] */
     TArray<float> Samples;
 };
@@ -89,10 +86,6 @@ struct FEegActionResult
     /** Server wall clock (Unix epoch ms) when the inference finished; echoed back in the ack
      *  so the server can measure inference-to-control latency */
     double InferMs = 0.0;
-
-    /** Rolling EEG command classification accuracy reported by the server, in percent;
-     *  negative until the first result arrives */
-    float AccuracyPercent = -1.0f;
 
     /** Per-action probabilities in [0, 1], ordered by EegConfig::ProbOrder */
     float ActionProbs[EegConfig::ProbCount] = {};
