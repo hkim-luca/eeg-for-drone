@@ -5,7 +5,11 @@
 
 #include "EegHudWidget.generated.h"
 
+class UDroneAttitudeIndicator;
+class UDroneCompassTape;
 class UDroneMinimapWidget;
+class UDroneProbabilityPanel;
+class UDroneTapeGauge;
 class UDroneTelemetryComponent;
 class UEegGraphPanel;
 class UEegRunnerComponent;
@@ -16,11 +20,13 @@ class UVerticalBox;
  *  Overlay shown while EEG running mode is active. The layout is designed in a Widget
  *  Blueprint using this class as its parent; bindable elements (all optional):
  *   - GraphPanel (EegGraphPanel), top-right: the 32-electrode signal graphs
- *   - ProbabilityBox (VerticalBox), top-left: filled by this class with one line per
- *     action (FORWARD/BACKWARD/LEFT/RIGHT/STOP %); the highest value is highlighted
+ *   - ProbabilityPanel (DroneProbabilityPanel), top-left: per-action inference probability bars
  *   - ConnectionText (TextBlock): EEG server link state (green CONNECTED / red RECONNECTING)
- *   - StatusBox (VerticalBox), bottom-left: filled by this class with one line per field
- *     (title, ALT/SPD/HDG/ROLL/PITCH/YAW, WGS84 lat/lon, MSL altitude)
+ *   - AltitudeGauge, SpeedGauge (DroneTapeGauge; set Field to Altitude/Speed respectively)
+ *   - AttitudeIndicator (DroneAttitudeIndicator): roll/pitch artificial horizon
+ *   - HeadingTape (DroneCompassTape): true-north heading tape
+ *   - StatusBox (VerticalBox), bottom-left: filled by this class with WGS84 lat/lon and MSL
+ *     altitude, one line per field (title, LAT, LON, ALT(MSL))
  *   - MinimapPanel (DroneMinimapWidget), bottom-right: north-up flight trail minimap
  */
 UCLASS(Abstract)
@@ -32,28 +38,16 @@ class UEegHudWidget : public UUserWidget
     /** Wires the graph panel and the status line to the running-mode driver */
     void SetRunner(UEegRunnerComponent *InRunner);
 
-    /** Wires the status text and minimap to the flight telemetry source */
+    /** Wires the status text, gauges and minimap to the flight telemetry source */
     void SetTelemetry(UDroneTelemetryComponent *InTelemetry);
-
-    /** Font size of the generated probability lines */
-    UPROPERTY(EditAnywhere, Category = "EEG")
-    int32 ProbabilityFontSize = 18;
-
-    /** Text color of the probability lines */
-    UPROPERTY(EditAnywhere, Category = "EEG")
-    FLinearColor ProbabilityColor = FLinearColor::White;
-
-    /** Text color of the line with the highest probability */
-    UPROPERTY(EditAnywhere, Category = "EEG")
-    FLinearColor ProbabilityHighlightColor = FLinearColor(1.0f, 0.85f, 0.1f);
 
     /** Font size of the generated flight status lines */
     UPROPERTY(EditAnywhere, Category = "EEG")
     int32 StatusFontSize = 16;
 
-    /** Text color of the flight status lines */
+    /** Text color of the flight status lines (soft white, per typical FPV OSD defaults) */
     UPROPERTY(EditAnywhere, Category = "EEG")
-    FLinearColor StatusColor = FLinearColor::White;
+    FLinearColor StatusColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.92f);
 
   protected:
     void NativeOnInitialized() override;
@@ -64,26 +58,36 @@ class UEegHudWidget : public UUserWidget
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UEegGraphPanel> GraphPanel;
 
-    /** Container for the per-action probability lines, top-left; the lines themselves
-     *  are created in C++ so the winning one can be recolored individually */
+    /** Per-action inference probability bars, top-left; designed in the Widget Blueprint */
     UPROPERTY(meta = (BindWidgetOptional))
-    TObjectPtr<UVerticalBox> ProbabilityBox;
-
-    /** One generated text line per action, ordered by EegConfig::ProbOrder */
-    UPROPERTY()
-    TArray<TObjectPtr<UTextBlock>> ProbabilityLines;
+    TObjectPtr<UDroneProbabilityPanel> ProbabilityPanel;
 
     /** EEG server link state; designed in the Widget Blueprint */
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> ConnectionText;
 
-    /** Container for the flight status lines, bottom-left; the lines themselves are
-     *  created in C++, one per field (title, ALT/SPD/HDG/ROLL/PITCH/YAW, lat/lon, MSL alt) */
+    /** Altitude tape gauge; designed in the Widget Blueprint with Field = Altitude */
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UDroneTapeGauge> AltitudeGauge;
+
+    /** Speed tape gauge; designed in the Widget Blueprint with Field = Speed */
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UDroneTapeGauge> SpeedGauge;
+
+    /** Roll/pitch artificial horizon; designed in the Widget Blueprint */
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UDroneAttitudeIndicator> AttitudeIndicator;
+
+    /** True-north heading tape; designed in the Widget Blueprint */
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UDroneCompassTape> HeadingTape;
+
+    /** Container for the WGS84 position lines, bottom-left; the lines themselves are
+     *  created in C++, one per field (title, LAT, LON, ALT(MSL)) */
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UVerticalBox> StatusBox;
 
-    /** One generated text line per status field: title, ALT, SPD, HDG, ROLL, PITCH, YAW,
-     *  LAT, LON, ALT(MSL), in that order */
+    /** One generated text line per position field: title, LAT, LON, ALT(MSL), in that order */
     UPROPERTY()
     TArray<TObjectPtr<UTextBlock>> StatusLines;
 
@@ -94,6 +98,6 @@ class UEegHudWidget : public UUserWidget
     /** Running-mode driver the HUD reports on */
     TWeakObjectPtr<UEegRunnerComponent> Runner;
 
-    /** Flight telemetry source the status text and minimap report on */
+    /** Flight telemetry source the status text, gauges and minimap report on */
     TWeakObjectPtr<UDroneTelemetryComponent> Telemetry;
 };

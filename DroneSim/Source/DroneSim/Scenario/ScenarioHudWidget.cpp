@@ -1,18 +1,12 @@
 #include "ScenarioHudWidget.h"
 #include "Components/TextBlock.h"
-#include "ScenarioTypes.h"
 
 void UScenarioHudWidget::SetActionLabel(const FString &ActionLabel)
 {
-    if (ActionText == nullptr)
+    if (ActionText != nullptr)
     {
-        return;
+        ActionText->SetText(FText::FromString(ActionLabel));
     }
-
-    // labels outside the four directional actions (WAIT, CONNECTING, ...) get no arrow
-    EScenarioAction Action;
-    const FString Prefix = ParseScenarioActionName(ActionLabel, Action) ? ScenarioActionArrow(Action) : FString();
-    ActionText->SetText(FText::FromString(Prefix + ActionLabel));
 }
 
 void UScenarioHudWidget::HideSaveResult()

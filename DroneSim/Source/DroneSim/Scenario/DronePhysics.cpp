@@ -73,6 +73,16 @@ void FDronePhysics::Tick(float DeltaTime)
     }
 }
 
+auto FDronePhysics::GetCurrentTilt() const -> FRotator
+{
+    return CurrentTilt;
+}
+
+auto FDronePhysics::IsActive() const -> bool
+{
+    return bActive;
+}
+
 auto FDronePhysics::IsSettled() const -> bool
 {
     const ACharacter *Drone = Character.Get();

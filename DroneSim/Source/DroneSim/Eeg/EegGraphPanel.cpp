@@ -46,11 +46,11 @@ class SEegGraph final : public SLeafWidget
 
   private:
     TWeakObjectPtr<const UEegRunnerComponent> Runner;
-    FLinearColor LineColor = FLinearColor::Green;
+    FLinearColor LineColor = FLinearColor(0.03f, 0.45f, 0.14f, 1.0f);
     FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.6f);
     FVector2D DesiredSize = FVector2D(340.0f, 520.0f);
     float LabelColumnWidth = 34.0f;
-    FLinearColor LabelColor = FLinearColor(0.7f, 0.7f, 0.7f, 1.0f);
+    FLinearColor LabelColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.92f);
     int32 LabelFontSize = 8;
 };
 

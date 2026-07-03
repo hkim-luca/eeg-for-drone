@@ -48,6 +48,10 @@ class UEegRunnerComponent : public UActorComponent
      *  all zero until the first action result arrives */
     auto GetLastActionProbs() const -> TConstArrayView<float>;
 
+    /** Current visual body tilt (banking roll, nose pitch) applied by the drone physics;
+     *  the pawn's own actor rotation never rolls or pitches, only this cosmetic mesh tilt */
+    auto GetCurrentTilt() const -> FRotator;
+
     void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 
     /** Fired when the applied action label changes; labels match scenario playback */
@@ -99,6 +103,10 @@ class UEegRunnerComponent : public UActorComponent
 
     /** Label broadcast for the last applied action */
     FString LastActionLabel;
+
+    /** Speed override passed to Start(), kept so the physics can begin late when the pawn
+     *  is possessed only after running mode already started */
+    float MoveSpeed = 0.0f;
 
     /** True between Start() and Stop() */
     bool bRunning = false;

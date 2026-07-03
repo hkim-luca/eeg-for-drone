@@ -27,6 +27,7 @@ void UEegRunnerComponent::Start(float InMoveSpeed)
     PendingAcks.Reset();
     bWasConnected = false;
     bWarnedNoPawn = false;
+    MoveSpeed = InMoveSpeed;
 
     // seed from the clock: the noise should differ between runs, unlike unit-style tests
     Simulator.Start(static_cast<int32>(FPlatformTime::Cycles()));
@@ -34,7 +35,7 @@ void UEegRunnerComponent::Start(float InMoveSpeed)
 
     if (ACharacter *Character = Cast<ACharacter>(GetControlledPawn()))
     {
-        Physics.Begin(*Character, InMoveSpeed, PhysicsSettings);
+        Physics.Begin(*Character, MoveSpeed, PhysicsSettings);
     }
 
     FScenarioLog::Info(FString::Printf(TEXT("EEG running mode start: server=%s:%d channels=%d rate=%dHz speed=%.0f"),
@@ -81,6 +82,11 @@ auto UEegRunnerComponent::GetLastActionProbs() const -> TConstArrayView<float>
     return TConstArrayView<float>(LastActionProbs, EegConfig::ProbCount);
 }
 
+auto UEegRunnerComponent::GetCurrentTilt() const -> FRotator
+{
+    return Physics.GetCurrentTilt();
+}
+
 void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                                         FActorComponentTickFunction *ThisTickFunction)
 {
@@ -116,6 +122,16 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
     APawn *Pawn = GetControlledPawn();
     if (Pawn != nullptr)
     {
+        // the pawn may be possessed only after Start() already ran (BeginPlay ordering),
+        // in which case the physics never began; begin it as soon as the pawn shows up
+        if (!Physics.IsActive())
+        {
+            if (ACharacter *Character = Cast<ACharacter>(Pawn))
+            {
+                Physics.Begin(*Character, MoveSpeed, PhysicsSettings);
+            }
+        }
+
         const APlayerController *Controller = Cast<APlayerController>(GetOwner());
         const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
         ApplyScenarioActionInput(CurrentAction, *Pawn, YawRotation);

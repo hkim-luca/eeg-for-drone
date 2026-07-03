@@ -63,6 +63,13 @@ class FDronePhysics
     /** True when the drone has physically settled: nearly stopped and the body is level again */
     auto IsSettled() const -> bool;
 
+    /** True between Begin() and End() */
+    auto IsActive() const -> bool;
+
+    /** Current visual body tilt (banking roll, nose pitch) applied on top of the mesh's rest
+     *  pose; the actor root itself never rolls or pitches, only this cosmetic mesh rotation */
+    auto GetCurrentTilt() const -> FRotator;
+
   private:
     FDronePhysicsSettings Settings;
 

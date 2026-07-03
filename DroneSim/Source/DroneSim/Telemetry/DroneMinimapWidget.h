@@ -31,13 +31,17 @@ class UDroneMinimapWidget : public UWidget
     UPROPERTY(EditAnywhere, Category = "Minimap")
     FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.6f);
 
-    /** Flight trail line color */
+    /** Flight trail line color (muted HUD green) */
     UPROPERTY(EditAnywhere, Category = "Minimap")
-    FLinearColor TrailColor = FLinearColor(0.1f, 0.9f, 0.4f, 1.0f);
+    FLinearColor TrailColor = FLinearColor(0.03f, 0.45f, 0.14f, 1.0f);
 
-    /** Drone heading icon color */
+    /** Drone heading icon color (OSD amber) */
     UPROPERTY(EditAnywhere, Category = "Minimap")
-    FLinearColor DroneIconColor = FLinearColor(1.0f, 0.85f, 0.1f, 1.0f);
+    FLinearColor DroneIconColor = FLinearColor(0.75f, 0.35f, 0.02f, 1.0f);
+
+    /** Home (takeoff) point marker color (soft white) */
+    UPROPERTY(EditAnywhere, Category = "Minimap")
+    FLinearColor HomeColor = FLinearColor(0.5f, 0.52f, 0.5f, 0.92f);
 
     /** Distance in meters between grid lines */
     UPROPERTY(EditAnywhere, Category = "Minimap")
