@@ -87,7 +87,7 @@ class ADroneSimPlayerController : public APlayerController
     /** Creates (if needed) and shows the initial menu screen */
     void ShowMenu();
 
-    /** Loads the scenario selected in Scenarios.ini and starts it when the Recording button is clicked */
+    /** Loads Content/Scenarios/Scenario.json and starts it when the Recording button is clicked */
     UFUNCTION()
     void HandleRecordingRequested();
 
@@ -98,7 +98,7 @@ class ADroneSimPlayerController : public APlayerController
     /** Reloads the level to show the initial screen again */
     void ReturnToInitialScreen();
 
-    /** Scenario loaded by the Recording button; kept for the CSV file name */
+    /** Scenario loaded by the Recording button */
     FLoadedScenario LoadedScenario;
 
     /** Timer delaying the level reload so the save result stays readable */

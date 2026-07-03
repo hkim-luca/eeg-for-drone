@@ -132,10 +132,9 @@ void ADroneSimPlayerController::HandleRecordingRequested()
 
     // file name: recording start time in KST (yyyymmdd_hhmmss); the CSV
     // is created now and appended to as the scenario plays, not written all at once at the end
-    const FString ScenarioName = FPaths::GetBaseFilename(LoadedScenario.FilePath);
     const FString RecordingFileName = ScenarioTime::ToFileStampKst(ScenarioTime::NowKst());
 
-    FScenarioLog::Info(FString::Printf(TEXT("Starting scenario: %s"), *ScenarioName));
+    FScenarioLog::Info(FString::Printf(TEXT("Starting scenario: %s"), *LoadedScenario.FilePath));
     ScenarioRunner->Start(LoadedScenario.Steps, RecordingResolution, ScenarioMoveSpeed, RecordingFileName);
 }
 

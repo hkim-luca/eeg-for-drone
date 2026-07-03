@@ -1,49 +1,21 @@
 #include "ScenarioConfig.h"
-#include "Misc/ConfigCacheIni.h"
 #include "Misc/Paths.h"
 #include "ScenarioLoader.h"
 #include "ScenarioLog.h"
 
 namespace
 {
-const TCHAR *ScenariosIniName = TEXT("Scenarios.ini");
-const TCHAR *ScenariosSection = TEXT("Scenarios");
-const TCHAR *FileKey = TEXT("File");
-const TCHAR *DefaultScenarioFile = TEXT("DefaultScenario.json");
-
-/** Folder holding the scenario JSON files and Scenarios.ini; staged as loose files when packaged */
-auto ScenariosDir() -> FString
+/** Fixed scenario file location; staged as a loose file when packaged so users can replace it
+ *  post-deployment without repackaging */
+auto ScenarioFilePath() -> FString
 {
-    return FPaths::ProjectContentDir() / TEXT("Scenarios");
+    return FPaths::ProjectContentDir() / TEXT("Scenarios") / TEXT("Scenario.json");
 }
 } // namespace
 
-auto FScenarioConfig::ResolveScenarioFile() -> FString
-{
-    const FString IniPath = ScenariosDir() / ScenariosIniName;
-
-    FString Entry;
-    if (FPaths::FileExists(IniPath))
-    {
-        FConfigFile ConfigFile;
-        ConfigFile.Read(IniPath);
-        ConfigFile.GetString(ScenariosSection, FileKey, Entry);
-        Entry.TrimStartAndEndInline();
-    }
-
-    if (Entry.IsEmpty())
-    {
-        FScenarioLog::Info(
-            FString::Printf(TEXT("No scenario selected in %s; playing %s"), *IniPath, DefaultScenarioFile));
-        Entry = DefaultScenarioFile;
-    }
-
-    return FPaths::IsRelative(Entry) ? ScenariosDir() / Entry : Entry;
-}
-
 auto FScenarioConfig::LoadConfiguredScenario(FLoadedScenario &OutScenario) -> bool
 {
-    OutScenario.FilePath = ResolveScenarioFile();
+    OutScenario.FilePath = ScenarioFilePath();
     OutScenario.Steps.Reset();
 
     if (!FScenarioLoader::LoadFromFile(OutScenario.FilePath, OutScenario.Steps))

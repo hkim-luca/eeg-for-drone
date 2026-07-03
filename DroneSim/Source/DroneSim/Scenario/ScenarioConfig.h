@@ -14,21 +14,14 @@ struct FLoadedScenario
 };
 
 /**
- *  Resolves which scenario JSON file to play from an external ini, so deployed
- *  builds can be reconfigured without repackaging. Users keep any number of
- *  scenario files in Content/Scenarios and select one in Scenarios.ini:
- *    [Scenarios]
- *    File=Mission1.json
- *  The entry is relative to the Scenarios folder (absolute paths also work).
- *  Without the ini (or with an empty entry) DefaultScenario.json plays.
+ *  Loads the scenario JSON file that deployed builds always play:
+ *  Content/Scenarios/Scenario.json. Users reconfigure the run by replacing
+ *  the contents of that single file; no repackaging is needed since the
+ *  Scenarios folder is staged as loose files.
  */
 class FScenarioConfig
 {
   public:
-    /** Loads the scenario selected in Scenarios.ini. Returns false if the file fails to load. */
+    /** Loads Content/Scenarios/Scenario.json. Returns false if the file fails to load. */
     static auto LoadConfiguredScenario(FLoadedScenario &OutScenario) -> bool;
-
-  private:
-    /** Returns the absolute path of the selected scenario file */
-    static auto ResolveScenarioFile() -> FString;
 };
