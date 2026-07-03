@@ -10,6 +10,9 @@
 
 namespace
 {
+/** StatusLines order: title line followed by one line per field */
+constexpr int32 StatusLineCount = 10;
+
 /** Formats a signed degree value as DMS with a hemisphere letter, e.g. 37°33'59.4"N */
 auto FormatDms(double Degrees, const TCHAR *PositiveHemisphere, const TCHAR *NegativeHemisphere) -> FString
 {
@@ -65,6 +68,26 @@ void UEegHudWidget::NativeOnInitialized()
             ProbabilityLines.Add(Line);
         }
     }
+
+    // one text line per status field inside the designed box, matching ProbabilityBox's
+    // pattern; left-aligned since these are label-value pairs rather than a ranked list
+    if (StatusBox != nullptr)
+    {
+        StatusBox->ClearChildren();
+        for (int32 Index = 0; Index < StatusLineCount; ++Index)
+        {
+            UTextBlock *Line = NewObject<UTextBlock>(this);
+            Line->SetFont(FCoreStyle::GetDefaultFontStyle(Index == 0 ? "Bold" : "Regular", StatusFontSize));
+            Line->SetColorAndOpacity(FSlateColor(StatusColor));
+            Line->SetJustification(ETextJustify::Left);
+            UVerticalBoxSlot *VerticalSlot = StatusBox->AddChildToVerticalBox(Line);
+            if (VerticalSlot != nullptr)
+            {
+                VerticalSlot->SetHorizontalAlignment(HAlign_Left);
+            }
+            StatusLines.Add(Line);
+        }
+    }
 }
 
 void UEegHudWidget::NativeTick(const FGeometry &MyGeometry, float InDeltaTime)
@@ -111,18 +134,28 @@ void UEegHudWidget::NativeTick(const FGeometry &MyGeometry, float InDeltaTime)
         }
     }
 
-    // flight status report, bottom-left: attitude, speed and WGS84 position of the pawn
+    // flight status report, bottom-left: attitude, speed and WGS84 position of the pawn,
+    // one field per line so each can be styled independently like ProbabilityLines
     if (const UDroneTelemetryComponent *PinnedTelemetry = Telemetry.Get();
-        PinnedTelemetry != nullptr && StatusText != nullptr)
+        PinnedTelemetry != nullptr && StatusLines.Num() == StatusLineCount)
     {
         const FString Lat = FormatDms(PinnedTelemetry->GetLatitude(), TEXT("N"), TEXT("S"));
         const FString Lon = FormatDms(PinnedTelemetry->GetLongitude(), TEXT("E"), TEXT("W"));
 
-        StatusText->SetText(FText::FromString(FString::Printf(
-            TEXT("Drone state\nALT   %.1f m\nSPD   %.1f m/s\nHDG   %.0f°\nROLL  %.1f°\nPITCH %.1f°\nYAW   "
-                 "%.1f°\nLAT   %s\nLON   %s\nALT(MSL) %.1f m"),
-            PinnedTelemetry->GetAltitudeMeters(), PinnedTelemetry->GetSpeedMps(), PinnedTelemetry->GetHeadingDeg(),
-            PinnedTelemetry->GetRollDeg(), PinnedTelemetry->GetPitchDeg(), PinnedTelemetry->GetYawDeg(), *Lat, *Lon,
-            PinnedTelemetry->GetAltitudeMslMeters())));
+        StatusLines[0]->SetText(NSLOCTEXT("EegHud", "StatusTitle", "Drone state"));
+        StatusLines[1]->SetText(
+            FText::FromString(FString::Printf(TEXT("ALT   %.1f m"), PinnedTelemetry->GetAltitudeMeters())));
+        StatusLines[2]->SetText(
+            FText::FromString(FString::Printf(TEXT("SPD   %.1f m/s"), PinnedTelemetry->GetSpeedMps())));
+        StatusLines[3]->SetText(
+            FText::FromString(FString::Printf(TEXT("HDG   %.0f°"), PinnedTelemetry->GetHeadingDeg())));
+        StatusLines[4]->SetText(FText::FromString(FString::Printf(TEXT("ROLL  %.1f°"), PinnedTelemetry->GetRollDeg())));
+        StatusLines[5]->SetText(
+            FText::FromString(FString::Printf(TEXT("PITCH %.1f°"), PinnedTelemetry->GetPitchDeg())));
+        StatusLines[6]->SetText(FText::FromString(FString::Printf(TEXT("YAW   %.1f°"), PinnedTelemetry->GetYawDeg())));
+        StatusLines[7]->SetText(FText::FromString(FString::Printf(TEXT("LAT   %s"), *Lat)));
+        StatusLines[8]->SetText(FText::FromString(FString::Printf(TEXT("LON   %s"), *Lon)));
+        StatusLines[9]->SetText(
+            FText::FromString(FString::Printf(TEXT("ALT(MSL) %.1f m"), PinnedTelemetry->GetAltitudeMslMeters())));
     }
 }

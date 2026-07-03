@@ -19,7 +19,8 @@ class UVerticalBox;
  *   - ProbabilityBox (VerticalBox), top-left: filled by this class with one line per
  *     action (FORWARD/BACKWARD/LEFT/RIGHT/STOP %); the highest value is highlighted
  *   - ConnectionText (TextBlock): EEG server link state (green CONNECTED / red RECONNECTING)
- *   - StatusText (TextBlock), bottom-left: ALT/SPD/HDG/ROLL/PITCH/YAW and WGS84 position
+ *   - StatusBox (VerticalBox), bottom-left: filled by this class with one line per field
+ *     (title, ALT/SPD/HDG/ROLL/PITCH/YAW, WGS84 lat/lon, MSL altitude)
  *   - MinimapPanel (DroneMinimapWidget), bottom-right: north-up flight trail minimap
  */
 UCLASS(Abstract)
@@ -46,6 +47,14 @@ class UEegHudWidget : public UUserWidget
     UPROPERTY(EditAnywhere, Category = "EEG")
     FLinearColor ProbabilityHighlightColor = FLinearColor(1.0f, 0.85f, 0.1f);
 
+    /** Font size of the generated flight status lines */
+    UPROPERTY(EditAnywhere, Category = "EEG")
+    int32 StatusFontSize = 16;
+
+    /** Text color of the flight status lines */
+    UPROPERTY(EditAnywhere, Category = "EEG")
+    FLinearColor StatusColor = FLinearColor::White;
+
   protected:
     void NativeOnInitialized() override;
     void NativeTick(const FGeometry &MyGeometry, float InDeltaTime) override;
@@ -68,9 +77,15 @@ class UEegHudWidget : public UUserWidget
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> ConnectionText;
 
-    /** Multi-line flight status report, bottom-left; designed in the Widget Blueprint */
+    /** Container for the flight status lines, bottom-left; the lines themselves are
+     *  created in C++, one per field (title, ALT/SPD/HDG/ROLL/PITCH/YAW, lat/lon, MSL alt) */
     UPROPERTY(meta = (BindWidgetOptional))
-    TObjectPtr<UTextBlock> StatusText;
+    TObjectPtr<UVerticalBox> StatusBox;
+
+    /** One generated text line per status field: title, ALT, SPD, HDG, ROLL, PITCH, YAW,
+     *  LAT, LON, ALT(MSL), in that order */
+    UPROPERTY()
+    TArray<TObjectPtr<UTextBlock>> StatusLines;
 
     /** North-up minimap of the flight trail, bottom-right; designed in the Widget Blueprint */
     UPROPERTY(meta = (BindWidgetOptional))
