@@ -6,6 +6,8 @@
 
 #include "DroneSimPlayerController.generated.h"
 
+class UDroneStatusWidget;
+class UDroneTelemetryComponent;
 class UEegHudWidget;
 class UEegRunnerComponent;
 class UInputMappingContext;
@@ -81,6 +83,12 @@ class ADroneSimPlayerController : public APlayerController
     UPROPERTY(EditAnywhere, Category = "Scenario|UI")
     TSubclassOf<UEegHudWidget> EegHudWidgetClass;
 
+    /** Widget class for the drone status overlay (flight state bottom-left, minimap
+     *  bottom-right), shown during EEG running mode; point this to a Widget Blueprint to
+     *  design it in the editor */
+    UPROPERTY(EditAnywhere, Category = "Scenario|UI")
+    TSubclassOf<UDroneStatusWidget> DroneStatusWidgetClass;
+
     /** Pointer to the initial menu screen widget */
     UPROPERTY()
     TObjectPtr<UScenarioMenuWidget> MenuWidget;
@@ -93,6 +101,10 @@ class ADroneSimPlayerController : public APlayerController
     UPROPERTY()
     TObjectPtr<UEegHudWidget> EegHudWidget;
 
+    /** Pointer to the drone status overlay widget */
+    UPROPERTY()
+    TObjectPtr<UDroneStatusWidget> DroneStatusWidget;
+
     /** Component that plays scenarios and records positions */
     UPROPERTY(VisibleAnywhere, Category = "Scenario")
     TObjectPtr<UScenarioRunnerComponent> ScenarioRunner;
@@ -100,6 +112,10 @@ class ADroneSimPlayerController : public APlayerController
     /** Component that drives the pawn from EEG server inferences in running mode */
     UPROPERTY(VisibleAnywhere, Category = "Scenario")
     TObjectPtr<UEegRunnerComponent> EegRunner;
+
+    /** Component that tracks the controlled pawn's flight state for the status overlay */
+    UPROPERTY(VisibleAnywhere, Category = "Scenario")
+    TObjectPtr<UDroneTelemetryComponent> DroneTelemetry;
 
     /** Creates (if needed) and shows the initial menu screen */
     void ShowMenu();
