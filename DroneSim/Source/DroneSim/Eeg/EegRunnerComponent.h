@@ -35,6 +35,12 @@ class UEegRunnerComponent : public UActorComponent
     /** Stops running mode, restores the pawn physics and closes the server connection */
     void Stop();
 
+    /** Closes the server connection deterministically when play ends (PIE stop, level
+     *  transition, actor destruction); FEegClient's destructor alone is not enough because
+     *  UObject teardown is deferred to garbage collection, which can leave the socket open
+     *  long after the dashboard should have seen a disconnect */
+    void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
     /** True between Start() and Stop() */
     auto IsRunning() const -> bool;
 

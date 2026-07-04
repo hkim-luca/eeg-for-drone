@@ -62,6 +62,12 @@ void UEegRunnerComponent::Stop()
                                        Client.GetDroppedMessageCount()));
 }
 
+void UEegRunnerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    Stop();
+    Super::EndPlay(EndPlayReason);
+}
+
 auto UEegRunnerComponent::IsRunning() const -> bool
 {
     return bRunning;
