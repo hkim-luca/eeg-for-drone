@@ -82,7 +82,7 @@ function drawWaveforms(waveforms, channelNames) {
   const stripHeight = plotHeight / channels;
   const amplitudeScale = (stripHeight * 0.45) / FULL_SCALE_UV;
 
-  // recessive strip separators and channel labels every 4th electrode
+  // recessive strip separators and one channel label per electrode
   ctx.strokeStyle = css("--grid");
   ctx.fillStyle = css("--text-muted");
   ctx.font = "10px system-ui, sans-serif";
@@ -93,9 +93,7 @@ function drawWaveforms(waveforms, channelNames) {
     ctx.moveTo(0, y);
     ctx.lineTo(width, y);
     ctx.stroke();
-    if (channel % 4 === 0) {
-      ctx.fillText(channelNames[channel] ?? `ch${channel}`, 4, channel * stripHeight + 11);
-    }
+    ctx.fillText(channelNames[channel] ?? `ch${channel}`, 4, channel * stripHeight + 11);
   }
 
   ctx.strokeStyle = css("--series-1");
