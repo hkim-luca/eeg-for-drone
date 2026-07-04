@@ -70,6 +70,7 @@ class ServerState:
                 "inferred_action": self._inferred_action,
                 "confidence": round(self._confidence, 3),
                 "sample_rate_hz": config.SAMPLE_RATE_HZ // config.GRAPH_DOWNSAMPLE,
+                "channel_names": list(config.CHANNEL_NAMES),
                 "waveforms": [list(channel) for channel in self._waveforms],
                 "prob_order": list(config.ACTION_PROB_ORDER),
                 "prob_history": [list(entry) for entry in self._prob_history],

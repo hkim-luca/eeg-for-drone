@@ -20,6 +20,16 @@ CHANNEL_COUNT: Final[int] = 32
 SAMPLE_RATE_HZ: Final[int] = 250
 GROUP_CHANNEL_COUNT: Final[int] = 6
 
+#: International 10-20/10-10 electrode names, in the same order as
+#: EegConfig::ChannelNames in EegTypes.h (approximates MNE's easycap-M1 montage;
+#: the simulated device has no real montage, so this is a display label only).
+CHANNEL_NAMES: Final[tuple[str, ...]] = (
+    "Fp1", "Fp2", "F7", "F3", "Fz", "F4", "F8", "FC5",
+    "FC1", "FC2", "FC6", "T7", "C3", "Cz", "C4", "T8",
+    "CP5", "CP1", "CP2", "CP6", "P7", "P3", "Pz", "P4",
+    "P8", "PO9", "O1", "Oz", "O2", "PO10", "AF7", "AF8",
+)
+
 STOP_ACTION: Final[str] = "STOP"
 
 #: First channel of the group boosted for each movement action.

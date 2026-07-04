@@ -52,7 +52,7 @@ function kstTime(date) {
   return date.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
 }
 
-function drawWaveforms(waveforms) {
+function drawWaveforms(waveforms, channelNames) {
   const canvas = document.getElementById("waveforms");
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
@@ -94,7 +94,7 @@ function drawWaveforms(waveforms) {
     ctx.lineTo(width, y);
     ctx.stroke();
     if (channel % 4 === 0) {
-      ctx.fillText(`ch${channel}`, 4, channel * stripHeight + 11);
+      ctx.fillText(channelNames[channel] ?? `ch${channel}`, 4, channel * stripHeight + 11);
     }
   }
 
@@ -121,7 +121,7 @@ async function poll() {
     renderConnection(state.connected);
     renderMetrics(state);
     drawProbChart(state.prob_order, state.prob_history, state.prob_times);
-    drawWaveforms(state.waveforms);
+    drawWaveforms(state.waveforms, state.channel_names);
   } catch (error) {
     renderConnection(false);
   } finally {
