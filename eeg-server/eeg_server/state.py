@@ -38,6 +38,9 @@ class ServerState:
         self._latency_history: Deque[list[float]] = deque(maxlen=config.PROB_HISTORY_LENGTH)
         #: KST clock label (HH:MM:SS) of each _latency_history entry, for the chart x-axis.
         self._latency_times: Deque[str] = deque(maxlen=config.PROB_HISTORY_LENGTH)
+        #: Drone physics parameters last announced by DroneSim (proto field names);
+        #: empty until the first PhysicsSettings message arrives.
+        self._physics_settings: dict[str, float] = {}
 
     def set_connected(self, connected: bool) -> None:
         with self._lock:
@@ -84,6 +87,11 @@ class ServerState:
             ])
             self._latency_times.append(time_label)
 
+    def on_physics_settings(self, settings: dict[str, float]) -> None:
+        """Stores the physics parameters DroneSim announced, keyed by proto field name."""
+        with self._lock:
+            self._physics_settings = dict(settings)
+
     def snapshot(self) -> dict[str, object]:
         """JSON-ready dashboard state; called from the HTTP thread."""
         with self._lock:
@@ -99,5 +107,6 @@ class ServerState:
                 "prob_times": list(self._prob_times),
                 "latency_history": [list(entry) for entry in self._latency_history],
                 "latency_times": list(self._latency_times),
+                "physics_settings": dict(self._physics_settings),
                 "metrics": self.metrics.snapshot(),
             }

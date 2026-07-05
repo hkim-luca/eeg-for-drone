@@ -52,8 +52,15 @@ class EegTcpServer:
                 except ValueError as error:
                     _LOGGER.warning("dropping malformed message: %s", error)
                     continue
-                if message.WhichOneof("msg") == "eeg":
+                kind = message.WhichOneof("msg")
+                if kind == "eeg":
                     await self._handle_frame(message.eeg, writer)
+                elif kind == "physics":
+                    settings = {
+                        field.name: value for field, value in message.physics.ListFields()
+                    }
+                    self._state.on_physics_settings(settings)
+                    _LOGGER.info("physics settings updated: %d fields", len(settings))
                 else:
                     latency = self._state.metrics.on_ack(message.ack.action_seq, message.ack.t_control_ms)
                     if latency is not None:

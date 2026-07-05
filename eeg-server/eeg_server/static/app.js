@@ -45,6 +45,54 @@ function renderMetrics(state) {
   setText("confidence", state.confidence.toFixed(2));
 }
 
+// proto field name -> [group, label, unit, decimals]; grouped like the in-game settings UI
+const PHYSICS_FIELDS = {
+  mass_kg:               ["기체", "질량", "kg", 3],
+  arm_length_m:          ["기체", "암 길이", "m", 3],
+  inertia_xx:            ["기체", "관성 Ixx", "kg·m²", 5],
+  inertia_yy:            ["기체", "관성 Iyy", "kg·m²", 5],
+  inertia_zz:            ["기체", "관성 Izz", "kg·m²", 5],
+  motor_time_constant_s: ["모터", "시정수", "s", 3],
+  thrust_coefficient:    ["모터", "추력 계수 kT", "", 9],
+  torque_coefficient:    ["모터", "토크 계수 kQ", "", 10],
+  motor_max_rad_s:       ["모터", "최대 회전속도", "rad/s", 0],
+  rotor_inertia:         ["모터", "로터 관성", "kg·m²", 7],
+  rotor_radius_m:        ["모터", "로터 반경", "m", 3],
+  gravity:               ["환경", "중력", "m/s²", 3],
+  air_density:           ["환경", "공기밀도", "kg/m³", 3],
+  drag_linear:           ["환경", "항력(선형)", "N/(m/s)", 3],
+  drag_quadratic:        ["환경", "항력(이차)", "N/(m/s)²", 3],
+  ground_effect_strength:["환경", "지면 효과", "", 2],
+  wind_x:                ["환경", "바람 X", "m/s", 1],
+  wind_y:                ["환경", "바람 Y", "m/s", 1],
+  gust_intensity:        ["환경", "돌풍 강도", "m/s", 1],
+  max_speed_ms:          ["제어", "최대 속도", "m/s", 1],
+  max_tilt_deg:          ["제어", "최대 기울기", "°", 1],
+  substep_hz:            ["제어", "적분 주파수", "Hz", 0],
+};
+const PHYSICS_GROUPS = ["기체", "모터", "환경", "제어"];
+
+function renderPhysicsSettings(settings) {
+  const grid = document.getElementById("physics-grid");
+  const empty = document.getElementById("physics-empty");
+  const hasData = settings && Object.keys(settings).length > 0;
+  grid.hidden = !hasData;
+  empty.hidden = hasData;
+  if (!hasData) return;
+
+  // proto3 omits zero-valued fields, so show 0 for known-but-absent ones
+  const groups = new Map(PHYSICS_GROUPS.map((name) => [name, []]));
+  for (const [field, [group, label, unit, decimals]] of Object.entries(PHYSICS_FIELDS)) {
+    const value = settings[field] ?? 0;
+    const text = Number(value).toFixed(decimals) + (unit ? ` ${unit}` : "");
+    groups.get(group).push(`<div class="physics-item"><span>${label}</span><span class="val">${text}</span></div>`);
+  }
+
+  grid.innerHTML = PHYSICS_GROUPS
+    .map((name) => `<div class="physics-group"><h3>${name}</h3>${groups.get(name).join("")}</div>`)
+    .join("");
+}
+
 function kstTime(date) {
   return date.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
 }
@@ -126,6 +174,7 @@ async function poll() {
     drawProbChart(state.prob_order, state.prob_history, state.prob_times);
     drawPipelineChart(state.latency_history, state.latency_times);
     drawWaveforms(state.waveforms, state.channel_names);
+    renderPhysicsSettings(state.physics_settings);
   } catch (error) {
     renderConnection(false);
   } finally {
