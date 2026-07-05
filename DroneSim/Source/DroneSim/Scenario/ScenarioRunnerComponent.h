@@ -72,7 +72,7 @@ class UScenarioRunnerComponent : public UActorComponent
 
     /** Drone flight physics applied during playback: inertia, drift and body tilt */
     UPROPERTY(EditAnywhere, Category = "Scenario|Physics")
-    FDronePhysicsSettings PhysicsSettings;
+    FDronePhysicsSettingsLegacy PhysicsSettings;
 
     void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 

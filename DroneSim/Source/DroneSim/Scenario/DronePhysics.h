@@ -5,9 +5,11 @@
 
 class ACharacter;
 
-/** Tuning values for the drone-like movement physics during scenario playback */
+/** Tuning values for the drone-like movement physics during scenario playback.
+ *  Legacy: replaced by FDronePhysicsSettings (DronePhysicsSettings.h) when the
+ *  6-DOF simulation lands; removed together with the facade rewrite. */
 USTRUCT(BlueprintType)
-struct FDronePhysicsSettings
+struct FDronePhysicsSettingsLegacy
 {
     GENERATED_BODY()
 
@@ -52,7 +54,7 @@ class FDronePhysics
   public:
     /** Saves the character's movement setup and applies the drone parameters.
      *  MoveSpeed > 0 overrides the max walk/fly speed (cm/s) for the run. */
-    void Begin(ACharacter &InCharacter, float MoveSpeed, const FDronePhysicsSettings &InSettings);
+    void Begin(ACharacter &InCharacter, float MoveSpeed, const FDronePhysicsSettingsLegacy &InSettings);
 
     /** Updates the visual body tilt from the measured acceleration; call every frame while active */
     void Tick(float DeltaTime);
@@ -71,7 +73,7 @@ class FDronePhysics
     auto GetCurrentTilt() const -> FRotator;
 
   private:
-    FDronePhysicsSettings Settings;
+    FDronePhysicsSettingsLegacy Settings;
 
     /** Character being driven; weak so a destroyed pawn is handled safely */
     TWeakObjectPtr<ACharacter> Character;

@@ -85,7 +85,7 @@ class UEegRunnerComponent : public UActorComponent
 
     /** Drone flight physics applied while running mode is active */
     UPROPERTY(EditAnywhere, Category = "EEG|Physics")
-    FDronePhysicsSettings PhysicsSettings;
+    FDronePhysicsSettingsLegacy PhysicsSettings;
 
   private:
     /** Handles one server payload: adopts the inferred action and queues its ack */
