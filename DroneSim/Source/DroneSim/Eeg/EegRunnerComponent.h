@@ -65,6 +65,9 @@ class UEegRunnerComponent : public UActorComponent
     /** Number of samples kept in the metrics history (~30 s at the ~10 Hz action-result rate) */
     static constexpr int32 MetricsHistoryCapacity = 300;
 
+    /** Re-reads UDronePhysicsConfig into the active flight physics (settings UI live edit) */
+    void NotifySettingsChanged();
+
     /** Current visual body tilt (banking roll, nose pitch) applied by the drone physics;
      *  the pawn's own actor rotation never rolls or pitches, only this cosmetic mesh tilt */
     auto GetCurrentTilt() const -> FRotator;
@@ -82,10 +85,6 @@ class UEegRunnerComponent : public UActorComponent
     /** TCP port of the Python EEG server */
     UPROPERTY(EditAnywhere, Category = "EEG")
     int32 ServerPort = 9800;
-
-    /** Drone flight physics applied while running mode is active */
-    UPROPERTY(EditAnywhere, Category = "EEG|Physics")
-    FDronePhysicsSettingsLegacy PhysicsSettings;
 
   private:
     /** Handles one server payload: adopts the inferred action and queues its ack */

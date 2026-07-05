@@ -1,13 +1,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Pawn.h"
 #include "ScenarioTypes.h"
 
-/** Applies one scenario action as movement input relative to the given yaw rotation.
- *  Shared by scenario playback (ScenarioRunnerComponent) and EEG running mode
- *  (EegRunnerComponent) so both modes steer the pawn identically. */
-inline void ApplyScenarioActionInput(EScenarioAction Action, APawn &Pawn, const FRotator &YawRotation)
+/** Returns the world-space movement direction of one scenario action relative to the
+ *  given yaw rotation; zero for Stop. Shared by scenario playback and EEG running mode
+ *  so both feed FDronePhysics::SetMoveDirection identically. */
+inline auto ScenarioActionDirection(EScenarioAction Action, const FRotator &YawRotation) -> FVector
 {
     const FVector Forward = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
     const FVector Right = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
@@ -15,19 +14,15 @@ inline void ApplyScenarioActionInput(EScenarioAction Action, APawn &Pawn, const 
     switch (Action)
     {
     case EScenarioAction::Left:
-        Pawn.AddMovementInput(Right, -1.0f);
-        break;
+        return -Right;
     case EScenarioAction::Right:
-        Pawn.AddMovementInput(Right, 1.0f);
-        break;
+        return Right;
     case EScenarioAction::Forward:
-        Pawn.AddMovementInput(Forward, 1.0f);
-        break;
+        return Forward;
     case EScenarioAction::Backward:
-        Pawn.AddMovementInput(Forward, -1.0f);
-        break;
+        return -Forward;
     case EScenarioAction::Stop:
-        // no movement input; braking stops the pawn
-        break;
+    default:
+        return FVector::ZeroVector;
     }
 }

@@ -1,4 +1,5 @@
 #include "EegRunnerComponent.h"
+#include "DronePhysicsConfig.h"
 #include "EegProto.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
@@ -37,7 +38,7 @@ void UEegRunnerComponent::Start(float InMoveSpeed)
 
     if (ACharacter *Character = Cast<ACharacter>(GetControlledPawn()))
     {
-        Physics.Begin(*Character, MoveSpeed, PhysicsSettings);
+        Physics.Begin(*Character, MoveSpeed, UDronePhysicsConfig::Get()->Settings);
     }
 
     FScenarioLog::Info(FString::Printf(TEXT("EEG running mode start: server=%s:%d channels=%d rate=%dHz speed=%.0f"),
@@ -100,6 +101,14 @@ auto UEegRunnerComponent::GetMetricsHistory() const -> TConstArrayView<FEegMetri
     return MetricsHistory;
 }
 
+void UEegRunnerComponent::NotifySettingsChanged()
+{
+    if (Physics.IsActive())
+    {
+        Physics.UpdateSettings(UDronePhysicsConfig::Get()->Settings);
+    }
+}
+
 auto UEegRunnerComponent::GetCurrentTilt() const -> FRotator
 {
     return Physics.GetCurrentTilt();
@@ -146,13 +155,13 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         {
             if (ACharacter *Character = Cast<ACharacter>(Pawn))
             {
-                Physics.Begin(*Character, MoveSpeed, PhysicsSettings);
+                Physics.Begin(*Character, MoveSpeed, UDronePhysicsConfig::Get()->Settings);
             }
         }
 
         const APlayerController *Controller = Cast<APlayerController>(GetOwner());
         const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
-        ApplyScenarioActionInput(CurrentAction, *Pawn, YawRotation);
+        Physics.SetMoveDirection(ScenarioActionDirection(CurrentAction, YawRotation));
         if (bWasConnected)
         {
             PublishActionLabel(ScenarioActionName(CurrentAction));

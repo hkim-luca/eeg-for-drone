@@ -1,4 +1,5 @@
 #include "ScenarioRunnerComponent.h"
+#include "DronePhysicsConfig.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
@@ -41,17 +42,18 @@ void UScenarioRunnerComponent::Start(const TArray<FScenarioStep> &InSteps, float
 
     BeginRecordingFile(InFileName);
 
-    // apply drone flight physics (inertia, drift, body tilt) for the run
+    // apply the simulated drone flight physics for the run
+    const FDronePhysicsSettings &ConfigSettings = UDronePhysicsConfig::Get()->Settings;
     if (ACharacter *Character = Cast<ACharacter>(GetControlledPawn()))
     {
-        Physics.Begin(*Character, InMoveSpeed, PhysicsSettings);
+        Physics.Begin(*Character, InMoveSpeed, ConfigSettings);
     }
 
     const APawn *Pawn = GetControlledPawn();
     FScenarioLog::Info(FString::Printf(
-        TEXT("Playback start: steps=%d sampleInterval=%.3fs speedOverride=%.0f accel=%.0f braking=%.0f "
+        TEXT("Playback start: steps=%d sampleInterval=%.3fs speedOverride=%.0f mass=%.2fkg maxSpeed=%.1fm/s "
              "pawn=%s at %s"),
-        Steps.Num(), SampleInterval, InMoveSpeed, PhysicsSettings.Acceleration, PhysicsSettings.BrakingDeceleration,
+        Steps.Num(), SampleInterval, InMoveSpeed, ConfigSettings.MassKg, ConfigSettings.MaxSpeedMS,
         Pawn != nullptr ? *Pawn->GetClass()->GetName() : TEXT("NULL"),
         Pawn != nullptr ? *Pawn->GetActorLocation().ToString() : TEXT("-")));
 
@@ -113,7 +115,7 @@ void UScenarioRunnerComponent::UpdatePlayback(float DeltaTime)
     {
         const APlayerController *Controller = Cast<APlayerController>(GetOwner());
         const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
-        ApplyScenarioActionInput(Step.Action, *Pawn, YawRotation);
+        Physics.SetMoveDirection(ScenarioActionDirection(Step.Action, YawRotation));
         PublishActionLabel(ScenarioActionName(Step.Action));
 
         StepElapsed += DeltaTime;
@@ -126,6 +128,7 @@ void UScenarioRunnerComponent::UpdatePlayback(float DeltaTime)
     }
 
     // settle phase: no input; wait until the drone has stopped and is level again
+    Physics.SetMoveDirection(FVector::ZeroVector);
     PublishActionLabel(SettlingLabel);
     SettleElapsed += DeltaTime;
 
@@ -188,6 +191,14 @@ void UScenarioRunnerComponent::SamplePosition()
 auto UScenarioRunnerComponent::GetRecordingPath() const -> const FString &
 {
     return RecordingFilePath;
+}
+
+void UScenarioRunnerComponent::NotifySettingsChanged()
+{
+    if (Physics.IsActive())
+    {
+        Physics.UpdateSettings(UDronePhysicsConfig::Get()->Settings);
+    }
 }
 
 void UScenarioRunnerComponent::BeginRecordingFile(const FString &FileName)

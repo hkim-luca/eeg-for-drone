@@ -50,6 +50,9 @@ class UScenarioRunnerComponent : public UActorComponent
      *  or an empty string if writing it failed. */
     auto GetRecordingPath() const -> const FString &;
 
+    /** Re-reads UDronePhysicsConfig into the active flight physics (settings UI live edit) */
+    void NotifySettingsChanged();
+
     /** Fired once when playback has passed the end of the last step */
     UPROPERTY(BlueprintAssignable, Category = "Scenario")
     FOnScenarioFinished OnScenarioFinished;
@@ -69,10 +72,6 @@ class UScenarioRunnerComponent : public UActorComponent
     /** Altitude of the UE world origin in meters */
     UPROPERTY(EditAnywhere, Category = "Scenario|Geo")
     double OriginAltitude = 0.0;
-
-    /** Drone flight physics applied during playback: inertia, drift and body tilt */
-    UPROPERTY(EditAnywhere, Category = "Scenario|Physics")
-    FDronePhysicsSettingsLegacy PhysicsSettings;
 
     void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 

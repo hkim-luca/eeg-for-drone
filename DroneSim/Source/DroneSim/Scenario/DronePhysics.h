@@ -1,101 +1,83 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DronePhysics.generated.h"
+#include "DroneFlightController.h"
+#include "DroneFlightModel.h"
+#include "DronePhysicsSettings.h"
 
 class ACharacter;
 
-/** Tuning values for the drone-like movement physics during scenario playback.
- *  Legacy: replaced by FDronePhysicsSettings (DronePhysicsSettings.h) when the
- *  6-DOF simulation lands; removed together with the facade rewrite. */
-USTRUCT(BlueprintType)
-struct FDronePhysicsSettingsLegacy
-{
-    GENERATED_BODY()
-
-    /** Thrust acceleration; lower values make the drone ramp up to speed more slowly */
-    UPROPERTY(EditAnywhere, Category = "Drone Physics", meta = (ClampMin = "1.0", ForceUnits = "cm/s^2"))
-    float Acceleration = 5000.0f;
-
-    /** Braking deceleration while no action is active; lower values give a longer drift */
-    UPROPERTY(EditAnywhere, Category = "Drone Physics", meta = (ClampMin = "0.0", ForceUnits = "cm/s^2"))
-    float BrakingDeceleration = 5000.0f;
-
-    /** Ground friction during playback; lower values make direction changes looser, like a drone */
-    UPROPERTY(EditAnywhere, Category = "Drone Physics", meta = (ClampMin = "0.0"))
-    float GroundFriction = 1.5f;
-
-    /** Maximum visual tilt of the body toward the acceleration direction */
-    UPROPERTY(EditAnywhere, Category = "Drone Physics",
-              meta = (ClampMin = "0.0", ClampMax = "45.0", ForceUnits = "deg"))
-    float MaxTiltAngle = 15.0f;
-
-    /** Interpolation speed of the visual tilt; higher values react faster */
-    UPROPERTY(EditAnywhere, Category = "Drone Physics", meta = (ClampMin = "0.1"))
-    float TiltInterpSpeed = 12.0f;
-
-    /** Speed below which the drone counts as stopped when settling between actions */
-    UPROPERTY(EditAnywhere, Category = "Drone Physics", meta = (ClampMin = "0.1", ForceUnits = "cm/s"))
-    float SettleSpeedThreshold = 10.0f;
-
-    /** Tilt below which the body counts as level when settling between actions */
-    UPROPERTY(EditAnywhere, Category = "Drone Physics", meta = (ClampMin = "0.01", ForceUnits = "deg"))
-    float SettleTiltThreshold = 0.5f;
-};
-
 /**
- *  Applies drone-like flight physics to a character during scenario playback:
- *  gradual thrust acceleration, momentum drift while braking, and a visual body
- *  tilt toward the acceleration direction like a real quadcopter.
- *  Begin() saves the character's movement setup and End() restores it.
+ *  Drives a character as a physically simulated X-quad drone. Begin() takes the pawn
+ *  out of CharacterMovement (MOVE_None) and hands it to the 6-DOF model + cascaded
+ *  controller pair, integrated at a fixed substep; every Tick() the simulated pose is
+ *  swept onto the actor (collisions slide), the simulated velocity is mirrored into
+ *  CharacterMovement for the telemetry HUD, and the body roll/pitch is applied to the
+ *  skeletal mesh (the actor root itself never rolls or pitches, only yaw). End()
+ *  restores the movement mode saved in Begin().
  */
 class FDronePhysics
 {
   public:
-    /** Saves the character's movement setup and applies the drone parameters.
-     *  MoveSpeed > 0 overrides the max walk/fly speed (cm/s) for the run. */
-    void Begin(ACharacter &InCharacter, float MoveSpeed, const FDronePhysicsSettingsLegacy &InSettings);
+    /** Saves the character's movement mode and starts the simulation at its current pose.
+     *  MoveSpeed > 0 overrides the settings' maximum horizontal speed (cm/s). */
+    void Begin(ACharacter &InCharacter, float MoveSpeed, const FDronePhysicsSettings &InSettings);
 
-    /** Updates the visual body tilt from the measured acceleration; call every frame while active */
+    /** World-space movement direction the controller should fly toward (zero = hold
+     *  position); set every frame by the runner before Tick() */
+    void SetMoveDirection(const FVector &WorldDirection);
+
+    /** Applies new parameters mid-flight (settings UI live edit) */
+    void UpdateSettings(const FDronePhysicsSettings &InSettings);
+
+    /** Integrates the simulation up to the frame time and applies the result to the actor */
     void Tick(float DeltaTime);
 
-    /** Restores the movement setup and the body orientation saved in Begin() */
+    /** Restores the movement mode and the mesh orientation saved in Begin() */
     void End();
 
-    /** True when the drone has physically settled: nearly stopped and the body is level again */
+    /** True when the drone has physically settled: nearly stopped and the body is level */
     auto IsSettled() const -> bool;
 
     /** True between Begin() and End() */
     auto IsActive() const -> bool;
 
-    /** Current visual body tilt (banking roll, nose pitch) applied on top of the mesh's rest
-     *  pose; the actor root itself never rolls or pitches, only this cosmetic mesh rotation */
+    /** Current body tilt (banking roll, nose pitch) in the actor's yaw frame; applied to
+     *  the mesh only, so HUD attitude instruments read it from here */
     auto GetCurrentTilt() const -> FRotator;
 
   private:
-    FDronePhysicsSettingsLegacy Settings;
+    /** Terrain Z below the drone in simulation meters; very deep when nothing is hit,
+     *  which keeps the ground-effect term inert */
+    auto TraceGroundZ() const -> double;
+
+    /** Sweeps the actor to the simulated position and slides the model along collisions */
+    void ApplyToActor(ACharacter &Drone);
+
+    FDronePhysicsSettings Settings;
+    FDroneFlightModel Model;
+    FDroneFlightController Controller;
 
     /** Character being driven; weak so a destroyed pawn is handled safely */
     TWeakObjectPtr<ACharacter> Character;
 
-    /** Mesh relative rotation before playback; the tilt is composed on top of this */
+    /** Mesh relative rotation before the run; the body tilt is composed on top of this */
     FQuat MeshBaseRotation = FQuat::Identity;
 
-    /** Velocity of the previous frame, used to estimate the acceleration */
-    FVector PreviousVelocity = FVector::ZeroVector;
+    /** Direction requested for the current frame, world space */
+    FVector MoveDirection = FVector::ZeroVector;
 
-    /** Smoothed tilt currently applied to the mesh */
+    /** Body tilt of the last tick in the actor's yaw frame (yaw zeroed) */
     FRotator CurrentTilt = FRotator::ZeroRotator;
 
-    /** Movement values saved in Begin() and restored in End() */
-    float SavedMaxWalkSpeed = 0.0f;
-    float SavedMaxFlySpeed = 0.0f;
-    float SavedMaxAcceleration = 0.0f;
-    float SavedBrakingDecelerationWalking = 0.0f;
-    float SavedBrakingDecelerationFlying = 0.0f;
-    float SavedBrakingFrictionFactor = 0.0f;
-    float SavedGroundFriction = 0.0f;
-    bool bSavedOrientRotationToMovement = false;
+    /** Yaw (rad) held for the whole run, captured from the actor in Begin() */
+    double HoldYawRad = 0.0;
+
+    /** Frame time not yet consumed by whole fixed substeps */
+    double TimeAccumulator = 0.0;
+
+    /** Movement mode saved in Begin() and restored in End() */
+    TEnumAsByte<EMovementMode> SavedMovementMode = MOVE_Walking;
 
     /** True between Begin() and End() */
     bool bActive = false;

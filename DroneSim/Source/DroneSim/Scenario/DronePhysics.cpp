@@ -1,47 +1,66 @@
 #include "DronePhysics.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/HitResult.h"
+#include "Engine/World.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
-void FDronePhysics::Begin(ACharacter &InCharacter, float MoveSpeed, const FDronePhysicsSettingsLegacy &InSettings)
+namespace
+{
+/** Ground Z reported when the trace hits nothing; deep enough to disable ground effect */
+constexpr double NoGroundZM = -1.0e6;
+
+/** Longest frame time integrated per tick; hitches beyond this are dropped, not simulated */
+constexpr double MaxFrameTimeS = 0.25;
+
+constexpr double CmPerMeter = 100.0;
+} // namespace
+
+void FDronePhysics::Begin(ACharacter &InCharacter, float MoveSpeed, const FDronePhysicsSettings &InSettings)
 {
     Settings = InSettings;
-    Character = &InCharacter;
-
-    UCharacterMovementComponent *Movement = InCharacter.GetCharacterMovement();
-    SavedMaxWalkSpeed = Movement->MaxWalkSpeed;
-    SavedMaxFlySpeed = Movement->MaxFlySpeed;
-    SavedMaxAcceleration = Movement->MaxAcceleration;
-    SavedBrakingDecelerationWalking = Movement->BrakingDecelerationWalking;
-    SavedBrakingDecelerationFlying = Movement->BrakingDecelerationFlying;
-    SavedBrakingFrictionFactor = Movement->BrakingFrictionFactor;
-    SavedGroundFriction = Movement->GroundFriction;
-    bSavedOrientRotationToMovement = Movement->bOrientRotationToMovement;
-
     if (MoveSpeed > 0.0f)
     {
-        Movement->MaxWalkSpeed = MoveSpeed;
-        Movement->MaxFlySpeed = MoveSpeed;
+        Settings.MaxSpeedMS = MoveSpeed / CmPerMeter;
     }
 
-    // inertia: ramp up with thrust acceleration, drift to a stop with braking deceleration
-    Movement->MaxAcceleration = Settings.Acceleration;
-    Movement->BrakingDecelerationWalking = Settings.BrakingDeceleration;
-    Movement->BrakingDecelerationFlying = Settings.BrakingDeceleration;
-    Movement->BrakingFrictionFactor = 0.0f;
-    Movement->GroundFriction = Settings.GroundFriction;
+    Character = &InCharacter;
 
-    // a drone strafes while keeping its heading instead of turning toward the movement
-    Movement->bOrientRotationToMovement = false;
+    // the simulation owns the pawn: freeze CharacterMovement and restore it in End()
+    UCharacterMovementComponent *Movement = InCharacter.GetCharacterMovement();
+    SavedMovementMode = Movement->MovementMode;
+    Movement->SetMovementMode(MOVE_None);
+    Movement->Velocity = FVector::ZeroVector;
 
     if (const USkeletalMeshComponent *Mesh = InCharacter.GetMesh())
     {
         MeshBaseRotation = Mesh->GetRelativeRotation().Quaternion();
     }
 
-    PreviousVelocity = InCharacter.GetVelocity();
+    HoldYawRad = FMath::DegreesToRadians(InCharacter.GetActorRotation().Yaw);
+    Model.SetSettings(Settings);
+    Model.Reset(InCharacter.GetActorLocation() / CmPerMeter, HoldYawRad);
+    Controller.Reset(Settings, Model.GetState().Position.Z + Settings.TakeoffAltitudeM, HoldYawRad);
+
+    MoveDirection = FVector::ZeroVector;
     CurrentTilt = FRotator::ZeroRotator;
+    TimeAccumulator = 0.0;
     bActive = true;
+}
+
+void FDronePhysics::SetMoveDirection(const FVector &WorldDirection)
+{
+    MoveDirection = WorldDirection;
+}
+
+void FDronePhysics::UpdateSettings(const FDronePhysicsSettings &InSettings)
+{
+    // a live edit must not undo the MoveSpeed override Begin() applied
+    const double SpeedOverride = Settings.MaxSpeedMS;
+    Settings = InSettings;
+    Settings.MaxSpeedMS = SpeedOverride;
+    Model.SetSettings(Settings);
+    Controller.SetSettings(Settings);
 }
 
 void FDronePhysics::Tick(float DeltaTime)
@@ -52,25 +71,74 @@ void FDronePhysics::Tick(float DeltaTime)
         return;
     }
 
-    // estimate the horizontal acceleration from the velocity change
-    const FVector Velocity = Drone->GetVelocity();
-    FVector Acceleration = (Velocity - PreviousVelocity) / DeltaTime;
-    Acceleration.Z = 0.0;
-    PreviousVelocity = Velocity;
+    const double GroundZM = TraceGroundZ();
+    const double StepS = 1.0 / FMath::Max(Settings.SubstepHz, 1);
+    TimeAccumulator = FMath::Min(TimeAccumulator + DeltaTime, MaxFrameTimeS);
 
-    // tilt the body toward the acceleration like a quadcopter: nose down when accelerating
-    // forward, banked sideways when strafing, nose up while braking
-    const float ForwardRatio = FMath::Clamp(
-        static_cast<float>(Acceleration.Dot(Drone->GetActorForwardVector())) / Settings.Acceleration, -1.0f, 1.0f);
-    const float RightRatio = FMath::Clamp(
-        static_cast<float>(Acceleration.Dot(Drone->GetActorRightVector())) / Settings.Acceleration, -1.0f, 1.0f);
-    const FRotator TargetTilt(-Settings.MaxTiltAngle * ForwardRatio, 0.0f, Settings.MaxTiltAngle * RightRatio);
-    CurrentTilt = FMath::RInterpTo(CurrentTilt, TargetTilt, DeltaTime, Settings.TiltInterpSpeed);
+    while (TimeAccumulator >= StepS)
+    {
+        double MotorCommands[4] = {};
+        Controller.Compute(Model.GetState(), MoveDirection, StepS, MotorCommands);
+        Model.Advance(StepS, MotorCommands, GroundZM);
+        TimeAccumulator -= StepS;
+    }
 
-    if (USkeletalMeshComponent *Mesh = Drone->GetMesh())
+    ApplyToActor(*Drone);
+}
+
+void FDronePhysics::ApplyToActor(ACharacter &Drone)
+{
+    FDroneFlightState &State = Model.GetMutableState();
+
+    // sweep so walls and terrain still block; on impact the model slides along the surface
+    FHitResult Hit;
+    Drone.SetActorLocation(State.Position * CmPerMeter, /*bSweep=*/true, &Hit, ETeleportType::None);
+    if (Hit.bBlockingHit)
+    {
+        State.Position = Drone.GetActorLocation() / CmPerMeter;
+        const double IntoSurface = FVector::DotProduct(State.Velocity, Hit.Normal);
+        if (IntoSurface < 0.0)
+        {
+            State.Velocity -= IntoSurface * Hit.Normal;
+        }
+    }
+
+    // telemetry and animation read CharacterMovement velocity, keep it in sync (cm/s)
+    if (UCharacterMovementComponent *Movement = Drone.GetCharacterMovement())
+    {
+        Movement->Velocity = State.Velocity * CmPerMeter;
+    }
+
+    // body tilt in the actor's yaw frame; the actor root keeps its yaw-only rotation
+    const FQuat YawQuat(FVector::UpVector, HoldYawRad);
+    FRotator Tilt = (YawQuat.Inverse() * State.Attitude).Rotator();
+    Tilt.Yaw = 0.0;
+    CurrentTilt = Tilt;
+
+    if (USkeletalMeshComponent *Mesh = Drone.GetMesh())
     {
         Mesh->SetRelativeRotation(CurrentTilt.Quaternion() * MeshBaseRotation);
     }
+}
+
+auto FDronePhysics::TraceGroundZ() const -> double
+{
+    const ACharacter *Drone = Character.Get();
+    const UWorld *World = Drone != nullptr ? Drone->GetWorld() : nullptr;
+    if (World == nullptr)
+    {
+        return NoGroundZM;
+    }
+
+    const FVector Start = Drone->GetActorLocation();
+    const FVector End = Start - FVector(0.0, 0.0, 200.0 * CmPerMeter);
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(DronePhysicsGround), /*bTraceComplex=*/false, Drone);
+    FHitResult Hit;
+    if (!World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+    {
+        return NoGroundZM;
+    }
+    return Hit.ImpactPoint.Z / CmPerMeter;
 }
 
 auto FDronePhysics::GetCurrentTilt() const -> FRotator
@@ -91,8 +159,8 @@ auto FDronePhysics::IsSettled() const -> bool
         return true;
     }
 
-    return Drone->GetVelocity().Size2D() < Settings.SettleSpeedThreshold &&
-           CurrentTilt.IsNearlyZero(Settings.SettleTiltThreshold);
+    const double SpeedCmS = Model.GetState().Velocity.Size2D() * CmPerMeter;
+    return SpeedCmS < Settings.SettleSpeedThreshold && CurrentTilt.IsNearlyZero(Settings.SettleTiltThreshold);
 }
 
 void FDronePhysics::End()
@@ -109,15 +177,11 @@ void FDronePhysics::End()
         return;
     }
 
-    UCharacterMovementComponent *Movement = Drone->GetCharacterMovement();
-    Movement->MaxWalkSpeed = SavedMaxWalkSpeed;
-    Movement->MaxFlySpeed = SavedMaxFlySpeed;
-    Movement->MaxAcceleration = SavedMaxAcceleration;
-    Movement->BrakingDecelerationWalking = SavedBrakingDecelerationWalking;
-    Movement->BrakingDecelerationFlying = SavedBrakingDecelerationFlying;
-    Movement->BrakingFrictionFactor = SavedBrakingFrictionFactor;
-    Movement->GroundFriction = SavedGroundFriction;
-    Movement->bOrientRotationToMovement = bSavedOrientRotationToMovement;
+    if (UCharacterMovementComponent *Movement = Drone->GetCharacterMovement())
+    {
+        Movement->SetMovementMode(SavedMovementMode);
+        Movement->Velocity = Model.GetState().Velocity * CmPerMeter;
+    }
 
     if (USkeletalMeshComponent *Mesh = Drone->GetMesh())
     {
