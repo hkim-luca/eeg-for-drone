@@ -57,6 +57,10 @@ PROB_HISTORY_LENGTH: Final[int] = 300
 #: Latency samples kept for the rolling latency statistics.
 LATENCY_WINDOW: Final[int] = 300
 
+#: Frame/ack outcomes kept for the rolling reliability percentages; a lifetime average
+#: would go stale and stop reflecting current conditions on a long-running connection.
+RELIABILITY_WINDOW: Final[int] = 300
+
 # --- dashboard waveform buffer ----------------------------------------------
 #: Every Nth received sample is kept for the dashboard waveforms.
 GRAPH_DOWNSAMPLE: Final[int] = 5

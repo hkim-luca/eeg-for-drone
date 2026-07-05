@@ -43,11 +43,32 @@ message ActionResult {
   int64 eeg_seq = 2;            // EegFrame.seq this result was inferred from
   string action = 3;            // LEFT, RIGHT, FORWARD, BACKWARD or STOP
   float confidence = 4;         // probability of the winning action, in [0, 1]
-  double t_infer_ms = 5;        // Unix epoch ms when the inference finished
+
+  // Server-local duration (ms) spent inside classify_frame, NOT an absolute timestamp;
+  // one of the 3 pipeline segments (device->infer, infer processing, infer->control).
+  double infer_duration_ms = 5;
 
   // Per-action probabilities in [0, 1] summing to ~1, in the fixed order
   // FORWARD, BACKWARD, LEFT, RIGHT, STOP (config.ACTION_PROB_ORDER / EegConfig::ProbOrder).
   repeated float action_probs = 7;
+
+  // Rolling evaluation metrics (MetricsStore.snapshot on the server); mirrors the
+  // dashboard KPI tiles so the in-game EEG HUD can show the same numbers.
+  // device->infer and infer->control are direct cross-clock subtractions (DroneSim's clock
+  // vs. the server's own clock) - correct as long as the two clocks read the same.
+  float latency_device_to_infer_mean_ms = 18;
+  float latency_device_to_infer_last_ms = 19;
+  float latency_device_to_infer_p95_ms = 20;
+  float latency_infer_to_control_mean_ms = 8;
+  float latency_infer_to_control_last_ms = 9;
+  float latency_infer_to_control_p95_ms = 10;
+  float latency_device_to_control_mean_ms = 11;
+  float latency_device_to_control_last_ms = 12;
+  float latency_device_to_control_p95_ms = 13;
+  float reliability_overall_percent = 14;   // min(frame_percent, ack_percent)
+  float reliability_frame_percent = 15;
+  int32 reliability_frames_lost = 16;
+  float reliability_ack_percent = 17;
 }
 
 // Everything the server sends.

@@ -22,6 +22,8 @@ void UEegRunnerComponent::Start(float InMoveSpeed)
 {
     CurrentAction = EScenarioAction::Stop;
     FMemory::Memzero(LastActionProbs);
+    LastMetrics = FEegMetrics();
+    MetricsHistory.Reset();
     LastActionLabel.Reset();
     PendingFrames.Reset();
     PendingAcks.Reset();
@@ -86,6 +88,16 @@ auto UEegRunnerComponent::GetSimulator() const -> const FEegSignalSimulator &
 auto UEegRunnerComponent::GetLastActionProbs() const -> TConstArrayView<float>
 {
     return TConstArrayView<float>(LastActionProbs, EegConfig::ProbCount);
+}
+
+auto UEegRunnerComponent::GetLastMetrics() const -> const FEegMetrics &
+{
+    return LastMetrics;
+}
+
+auto UEegRunnerComponent::GetMetricsHistory() const -> TConstArrayView<FEegMetrics>
+{
+    return MetricsHistory;
 }
 
 auto UEegRunnerComponent::GetCurrentTilt() const -> FRotator
@@ -173,6 +185,17 @@ void UEegRunnerComponent::HandleServerMessage(TConstArrayView<uint8> Payload)
 
     CurrentAction = Result.Action;
     FMemory::Memcpy(LastActionProbs, Result.ActionProbs, sizeof(LastActionProbs));
+
+    FEegMetrics MetricsWithInferDuration = Result.Metrics;
+    MetricsWithInferDuration.InferDurationMs = static_cast<float>(Result.InferDurationMs);
+    LastMetrics = MetricsWithInferDuration;
+
+    MetricsHistory.Add(MetricsWithInferDuration);
+    if (MetricsHistory.Num() > MetricsHistoryCapacity)
+    {
+        MetricsHistory.RemoveAt(0, MetricsHistory.Num() - MetricsHistoryCapacity, EAllowShrinking::No);
+    }
+
     PendingAcks.Add(Result);
 }
 

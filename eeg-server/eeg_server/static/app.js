@@ -25,18 +25,15 @@ function renderConnection(connected) {
   setText("connection-label", connected ? "DroneSim 연결됨" : "DroneSim 연결 끊김 (자동 재접속 대기)");
 }
 
+function renderPipelineSummary(state) {
+  const device = state.metrics.latency_ms.device_to_control;
+  setText("pipeline-total-ms", fmt(Math.max(device.last, 0)));
+  setText("pipeline-mean-ms", fmt(device.mean));
+  setText("pipeline-p95-ms", fmt(device.p95));
+}
+
 function renderMetrics(state) {
   const metrics = state.metrics;
-  const infer = metrics.latency_ms.infer_to_control;
-  setText("latency-mean", fmt(infer.mean));
-  setText("latency-last", fmt(infer.last));
-  setText("latency-p95", fmt(infer.p95));
-
-  const device = metrics.latency_ms.device_to_control;
-  setText("e2e-mean", fmt(device.mean));
-  setText("e2e-last", fmt(device.last));
-  setText("e2e-p95", fmt(device.p95));
-
   const reliability = metrics.reliability;
   const overall = Math.min(reliability.frame_percent, reliability.ack_percent);
   setText("reliability", fmt(overall));
@@ -67,22 +64,28 @@ function drawWaveforms(waveforms, channelNames) {
   const channels = waveforms.length;
   if (channels === 0) return;
 
-  // KST time axis along the bottom: the window is the last 2 seconds
+  // reserve a left gutter for channel-name labels so the signal lines never draw over them
+  const labelWidth = 32;
   const axisHeight = 18;
+  const plotLeft = labelWidth;
+  const plotWidth = width - labelWidth;
   const plotHeight = height - axisHeight;
+
+  // KST time axis along the bottom: the window is the last 2 seconds
   const now = Date.now();
   ctx.fillStyle = css("--text-muted");
   ctx.font = "10px system-ui, sans-serif";
-  [[0, "left", -2000], [width / 2, "center", -1000], [width, "right", 0]].forEach(([x, align, offsetMs]) => {
-    ctx.textAlign = align;
-    ctx.fillText(`${kstTime(new Date(now + offsetMs))}`, x, height - 5);
-  });
+  [[plotLeft, "left", -2000], [plotLeft + plotWidth / 2, "center", -1000], [plotLeft + plotWidth, "right", 0]]
+    .forEach(([x, align, offsetMs]) => {
+      ctx.textAlign = align;
+      ctx.fillText(`${kstTime(new Date(now + offsetMs))}`, x, height - 5);
+    });
   ctx.textAlign = "left";
 
   const stripHeight = plotHeight / channels;
-  const amplitudeScale = (stripHeight * 0.45) / FULL_SCALE_UV;
 
-  // recessive strip separators and one channel label per electrode
+  // recessive strip separators across the plot area, and one channel label per electrode in
+  // the reserved left gutter, vertically centered on its own strip
   ctx.strokeStyle = css("--grid");
   ctx.fillStyle = css("--text-muted");
   ctx.font = "10px system-ui, sans-serif";
@@ -90,10 +93,10 @@ function drawWaveforms(waveforms, channelNames) {
   for (let channel = 0; channel < channels; channel += 1) {
     const y = Math.round((channel + 1) * stripHeight) - 0.5;
     ctx.beginPath();
-    ctx.moveTo(0, y);
+    ctx.moveTo(plotLeft, y);
     ctx.lineTo(width, y);
     ctx.stroke();
-    ctx.fillText(channelNames[channel] ?? `ch${channel}`, 4, channel * stripHeight + 11);
+    ctx.fillText(channelNames[channel] ?? `ch${channel}`, 2, (channel + 0.5) * stripHeight + 3);
   }
 
   ctx.strokeStyle = css("--series-1");
@@ -102,11 +105,12 @@ function drawWaveforms(waveforms, channelNames) {
     const samples = waveforms[channel];
     if (samples.length < 2) continue;
     const centerY = (channel + 0.5) * stripHeight;
-    const stepX = width / (samples.length - 1);
+    const stepX = plotWidth / (samples.length - 1);
     ctx.beginPath();
     samples.forEach((value, index) => {
+      const x = plotLeft + index * stepX;
       const y = centerY - Math.max(-1, Math.min(1, value / FULL_SCALE_UV)) * stripHeight * 0.45;
-      if (index === 0) ctx.moveTo(index * stepX, y); else ctx.lineTo(index * stepX, y);
+      if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
     ctx.stroke();
   }
@@ -117,8 +121,10 @@ async function poll() {
     const response = await fetch("/api/state", { cache: "no-store" });
     const state = await response.json();
     renderConnection(state.connected);
+    renderPipelineSummary(state);
     renderMetrics(state);
     drawProbChart(state.prob_order, state.prob_history, state.prob_times);
+    drawPipelineChart(state.latency_history, state.latency_times);
     drawWaveforms(state.waveforms, state.channel_names);
   } catch (error) {
     renderConnection(false);

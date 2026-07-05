@@ -186,8 +186,8 @@ auto ParseActionResult(TConstArrayView<uint8> Bytes, FEegActionResult &OutResult
         case 4: // confidence
             bOk = Reader.ReadRaw(OutResult.Confidence);
             break;
-        case 5: // t_infer_ms
-            bOk = Reader.ReadRaw(OutResult.InferMs);
+        case 5: // infer_duration_ms
+            bOk = Reader.ReadRaw(OutResult.InferDurationMs);
             break;
         case 7: { // action_probs (packed floats in EegConfig::ProbOrder)
             TConstArrayView<uint8> View;
@@ -199,6 +199,48 @@ auto ParseActionResult(TConstArrayView<uint8> Bytes, FEegActionResult &OutResult
             }
             break;
         }
+        case 8: // latency_infer_to_control_mean_ms
+            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyInferToControlMeanMs);
+            break;
+        case 9: // latency_infer_to_control_last_ms
+            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyInferToControlLastMs);
+            break;
+        case 10: // latency_infer_to_control_p95_ms
+            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyInferToControlP95Ms);
+            break;
+        case 11: // latency_device_to_control_mean_ms
+            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToControlMeanMs);
+            break;
+        case 12: // latency_device_to_control_last_ms
+            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToControlLastMs);
+            break;
+        case 13: // latency_device_to_control_p95_ms
+            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToControlP95Ms);
+            break;
+        case 14: // reliability_overall_percent
+            bOk = Reader.ReadRaw(OutResult.Metrics.ReliabilityOverallPercent);
+            break;
+        case 15: // reliability_frame_percent
+            bOk = Reader.ReadRaw(OutResult.Metrics.ReliabilityFramePercent);
+            break;
+        case 16: { // reliability_frames_lost
+            uint64 Value = 0;
+            bOk = Reader.ReadVarint(Value);
+            OutResult.Metrics.ReliabilityFramesLost = static_cast<int32>(Value);
+            break;
+        }
+        case 17: // reliability_ack_percent
+            bOk = Reader.ReadRaw(OutResult.Metrics.ReliabilityAckPercent);
+            break;
+        case 18: // latency_device_to_infer_mean_ms
+            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToInferMeanMs);
+            break;
+        case 19: // latency_device_to_infer_last_ms
+            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToInferLastMs);
+            break;
+        case 20: // latency_device_to_infer_p95_ms
+            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToInferP95Ms);
+            break;
         default: // eeg_seq and future fields
             bOk = Reader.SkipField(WireType);
             break;

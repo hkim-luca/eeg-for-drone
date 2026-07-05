@@ -3,6 +3,7 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "EegGraphPanel.h"
+#include "EegMetricsChart.h"
 #include "EegRunnerComponent.h"
 #include "Styling/CoreStyle.h"
 #include "Telemetry/DroneAttitudeIndicator.h"
@@ -40,6 +41,10 @@ void UEegHudWidget::SetRunner(UEegRunnerComponent *InRunner)
     if (ProbabilityPanel != nullptr)
     {
         ProbabilityPanel->SetRunner(InRunner);
+    }
+    if (MetricsChart != nullptr)
+    {
+        MetricsChart->SetRunner(InRunner);
     }
 }
 

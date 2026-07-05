@@ -54,18 +54,41 @@ def build_action_payload(
     eeg_seq: int,
     action: str,
     confidence: float,
-    infer_ms: float,
+    infer_duration_ms: float,
     probabilities: list[float],
+    metrics: dict[str, object],
 ) -> bytes:
     """Serializes one framed ``ServerMessage`` carrying an ``ActionResult``.
-    ``probabilities`` must follow ``config.ACTION_PROB_ORDER``."""
+    ``probabilities`` must follow ``config.ACTION_PROB_ORDER``; ``metrics`` is
+    ``MetricsStore.snapshot()``, forwarded so DroneSim's EEG HUD can show the
+    same latency/reliability numbers as the dashboard. ``infer_duration_ms`` is a
+    server-local duration (not an absolute timestamp) so it stays valid even when
+    the server runs on a different, unsynchronized-clock machine than DroneSim."""
     message = pb.ServerMessage()
     message.action.action_seq = action_seq
     message.action.eeg_seq = eeg_seq
     message.action.action = action
     message.action.confidence = confidence
-    message.action.t_infer_ms = infer_ms
+    message.action.infer_duration_ms = infer_duration_ms
     message.action.action_probs.extend(probabilities)
+
+    device_to_infer = metrics["latency_ms"]["device_to_infer"]
+    infer_latency = metrics["latency_ms"]["infer_to_control"]
+    device_latency = metrics["latency_ms"]["device_to_control"]
+    reliability = metrics["reliability"]
+    message.action.latency_device_to_infer_mean_ms = device_to_infer["mean"]
+    message.action.latency_device_to_infer_last_ms = device_to_infer["last"]
+    message.action.latency_device_to_infer_p95_ms = device_to_infer["p95"]
+    message.action.latency_infer_to_control_mean_ms = infer_latency["mean"]
+    message.action.latency_infer_to_control_last_ms = infer_latency["last"]
+    message.action.latency_infer_to_control_p95_ms = infer_latency["p95"]
+    message.action.latency_device_to_control_mean_ms = device_latency["mean"]
+    message.action.latency_device_to_control_last_ms = device_latency["last"]
+    message.action.latency_device_to_control_p95_ms = device_latency["p95"]
+    message.action.reliability_overall_percent = min(reliability["frame_percent"], reliability["ack_percent"])
+    message.action.reliability_frame_percent = reliability["frame_percent"]
+    message.action.reliability_frames_lost = reliability["frames_lost"]
+    message.action.reliability_ack_percent = reliability["ack_percent"]
     return frame_payload(message.SerializeToString())
 
 

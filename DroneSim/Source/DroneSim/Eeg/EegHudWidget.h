@@ -12,6 +12,7 @@ class UDroneProbabilityPanel;
 class UDroneTapeGauge;
 class UDroneTelemetryComponent;
 class UEegGraphPanel;
+class UEegMetricsChart;
 class UEegRunnerComponent;
 class UTextBlock;
 class UVerticalBox;
@@ -28,6 +29,8 @@ class UVerticalBox;
  *   - StatusBox (VerticalBox), bottom-left: filled by this class with WGS84 lat/lon and MSL
  *     altitude, one line per field (title, LAT, LON, ALT(MSL))
  *   - MinimapPanel (DroneMinimapWidget), bottom-right: north-up flight trail minimap
+ *   - MetricsChart (EegMetricsChart): the same latency/reliability KPIs shown on the
+ *     eeg-server dashboard, as rolling time-series strips with the live values drawn on top
  */
 UCLASS(Abstract)
 class UEegHudWidget : public UUserWidget
@@ -94,6 +97,11 @@ class UEegHudWidget : public UUserWidget
     /** North-up minimap of the flight trail, bottom-right; designed in the Widget Blueprint */
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UDroneMinimapWidget> MinimapPanel;
+
+    /** Rolling time-series chart of the dashboard KPIs, with the live values drawn on top;
+     *  designed in the Widget Blueprint */
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UEegMetricsChart> MetricsChart;
 
     /** Running-mode driver the HUD reports on */
     TWeakObjectPtr<UEegRunnerComponent> Runner;

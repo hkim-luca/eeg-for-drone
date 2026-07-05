@@ -71,13 +71,26 @@ h1 { font-size: 20px; font-weight: 650; }
 .status-up .status-dot { background: var(--status-good); }
 .status-down .status-dot { background: var(--status-critical); }
 
-.kpi-row, .action-row {
+.kpi-row {
   display: grid;
   gap: 12px;
   margin-bottom: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
-.kpi-row { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-.action-row { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+
+/* pipeline gets the bulk of the row; reliability is a fixed ~20% side column, both
+ * stretched to the same height and vertically centering their own content */
+.response-row {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+  grid-template-columns: 4fr 1fr;
+  align-items: stretch;
+}
+.response-row .tile { height: 100%; display: flex; flex-direction: column; justify-content: center; }
+@media (max-width: 640px) {
+  .response-row { grid-template-columns: 1fr; }
+}
 
 .tile {
   background: var(--surface-1);
@@ -97,6 +110,10 @@ h1 { font-size: 20px; font-weight: 650; }
 .value .unit { font-size: 16px; color: var(--text-secondary); margin-left: 4px; }
 .sub { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
 .action { font-size: 28px; font-weight: 650; letter-spacing: 0.02em; }
+
+.pipeline-tile { margin-bottom: 12px; }
+.pipeline-chart-wrap { margin-top: 4px; }
+#pipeline-chart { display: block; width: 100%; height: 120px; }
 
 .chart-tile { margin-bottom: 12px; }
 #waveforms { display: block; width: 100%; height: 640px; margin-top: 8px; }

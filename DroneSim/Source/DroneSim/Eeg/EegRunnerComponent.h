@@ -54,6 +54,17 @@ class UEegRunnerComponent : public UActorComponent
      *  all zero until the first action result arrives */
     auto GetLastActionProbs() const -> TConstArrayView<float>;
 
+    /** Rolling latency/reliability metrics of the last result, mirrored from the dashboard
+     *  KPI tiles; all zero until the first action result arrives */
+    auto GetLastMetrics() const -> const FEegMetrics &;
+
+    /** Metrics history for the EEG HUD's chart, oldest first, capped at MetricsHistoryCapacity
+     *  samples (one per received action result, ~10 Hz) */
+    auto GetMetricsHistory() const -> TConstArrayView<FEegMetrics>;
+
+    /** Number of samples kept in the metrics history (~30 s at the ~10 Hz action-result rate) */
+    static constexpr int32 MetricsHistoryCapacity = 300;
+
     /** Current visual body tilt (banking roll, nose pitch) applied by the drone physics;
      *  the pawn's own actor rotation never rolls or pitches, only this cosmetic mesh tilt */
     auto GetCurrentTilt() const -> FRotator;
@@ -106,6 +117,12 @@ class UEegRunnerComponent : public UActorComponent
 
     /** Per-action probabilities of the last result, ordered by EegConfig::ProbOrder */
     float LastActionProbs[EegConfig::ProbCount] = {};
+
+    /** Rolling latency/reliability metrics of the last result */
+    FEegMetrics LastMetrics;
+
+    /** Metrics history for the chart, oldest first; capped at MetricsHistoryCapacity */
+    TArray<FEegMetrics> MetricsHistory;
 
     /** Label broadcast for the last applied action */
     FString LastActionLabel;

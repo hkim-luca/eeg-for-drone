@@ -16,16 +16,15 @@
 </header>
 
 <main>
-  <section class="kpi-row" aria-label="평가지표">
-    <article class="tile">
-      <h2>실시간 반응속도 (추론&rarr;제어)</h2>
-      <p class="value"><span id="latency-mean">--</span><span class="unit">ms</span></p>
-      <p class="sub">last <span id="latency-last">--</span> ms &middot; p95 <span id="latency-p95">--</span> ms</p>
-    </article>
-    <article class="tile">
-      <h2>전체 경로 지연 (device&rarr;제어)</h2>
-      <p class="value"><span id="e2e-mean">--</span><span class="unit">ms</span></p>
-      <p class="sub">last <span id="e2e-last">--</span> ms &middot; p95 <span id="e2e-p95">--</span> ms</p>
+  <section class="response-row" aria-label="응답 경로 및 통신 신뢰도">
+    <article class="tile pipeline-tile" aria-label="응답 경로">
+      <h2>응답 경로</h2>
+      <div class="legend" id="pipeline-legend"></div>
+      <div class="chart-wrap pipeline-chart-wrap">
+        <canvas id="pipeline-chart"></canvas>
+      </div>
+      <p class="sub">전체 <span id="pipeline-total-ms">--</span> ms
+         (mean: <span id="pipeline-mean-ms">--</span>, p95: <span id="pipeline-p95-ms">--</span>)</p>
     </article>
     <article class="tile">
       <h2>드론 제어 통신 신뢰도</h2>
@@ -35,7 +34,7 @@
     </article>
   </section>
 
-  <section class="action-row" aria-label="추론 결과">
+  <section class="kpi-row" aria-label="추론 결과">
     <article class="tile action-tile">
       <h2>추론 결과</h2>
       <p class="action" id="inferred-action">-</p>
@@ -63,6 +62,7 @@
 </footer>
 
 <script src="/probchart.js"></script>
+<script src="/pipelinechart.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

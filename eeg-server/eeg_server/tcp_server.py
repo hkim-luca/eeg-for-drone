@@ -55,7 +55,9 @@ class EegTcpServer:
                 if message.WhichOneof("msg") == "eeg":
                     await self._handle_frame(message.eeg, writer)
                 else:
-                    self._state.metrics.on_ack(message.ack.action_seq, message.ack.t_control_ms)
+                    latency = self._state.metrics.on_ack(message.ack.action_seq, message.ack.t_control_ms)
+                    if latency is not None:
+                        self._state.on_latency(latency, now_kst().strftime("%H:%M:%S"))
         except (asyncio.IncompleteReadError, ConnectionResetError):
             pass  # DroneSim closed the link; it reconnects on its own
         except ValueError as error:
@@ -67,6 +69,10 @@ class EegTcpServer:
 
     async def _handle_frame(self, frame: pb.EegFrame, writer: asyncio.StreamWriter) -> None:
         """Classifies one frame and streams the inferred action back."""
+        # server's own clock as early as possible - this is the "device->infer" leg's
+        # server-side endpoint, compared directly against frame.t_sent_ms (DroneSim's clock)
+        frame_received_ms = now_ms()
+
         if frame.channels <= 0 or len(frame.data) % frame.channels != 0:
             _LOGGER.warning("frame %d: %d values do not divide into %d channels", frame.seq, len(frame.data),
                             frame.channels)
@@ -74,7 +80,7 @@ class EegTcpServer:
 
         data = list(frame.data)
         result = classify_frame(data, frame.channels)
-        infer_ms = now_ms()
+        infer_duration_ms = now_ms() - frame_received_ms
         moment = now_kst()
         probabilities = [result.probabilities[action] for action in config.ACTION_PROB_ORDER]
 
@@ -84,7 +90,7 @@ class EegTcpServer:
 
         action_seq = self._next_action_seq
         self._next_action_seq += 1
-        self._state.metrics.on_action_sent(action_seq, infer_ms, frame.t_sent_ms)
+        self._state.metrics.on_action_sent(action_seq, infer_duration_ms, frame.t_sent_ms, frame_received_ms)
 
         # persist every dashboard value as one KST-stamped time-series row
         metrics = self._state.metrics.snapshot()
@@ -95,6 +101,9 @@ class EegTcpServer:
                               latency["infer_to_control"]["last"], latency["device_to_control"]["last"],
                               reliability["frame_percent"], reliability["ack_percent"])
 
-        writer.write(build_action_payload(action_seq, frame.seq, result.action, result.confidence, infer_ms,
-                                          probabilities))
+        # response_sent_ms is the "infer->control" leg's server-side endpoint, compared
+        # directly against ControlAck.t_control_ms (DroneSim's clock) once the ack arrives
+        self._state.metrics.mark_response_sent(action_seq, now_ms())
+        writer.write(build_action_payload(action_seq, frame.seq, result.action, result.confidence,
+                                          infer_duration_ms, probabilities, metrics))
         await writer.drain()

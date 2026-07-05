@@ -71,6 +71,30 @@ struct FEegFrame
     TArray<float> Samples;
 };
 
+/** Rolling evaluation metrics, mirrored from the dashboard KPI tiles
+ *  (eeg_server MetricsStore.snapshot) so the in-game EEG HUD shows the same numbers */
+struct FEegMetrics
+{
+    float LatencyDeviceToInferMeanMs = 0.0f;
+    float LatencyDeviceToInferLastMs = 0.0f;
+    float LatencyDeviceToInferP95Ms = 0.0f;
+    float LatencyInferToControlMeanMs = 0.0f;
+    float LatencyInferToControlLastMs = 0.0f;
+    float LatencyInferToControlP95Ms = 0.0f;
+    float LatencyDeviceToControlMeanMs = 0.0f;
+    float LatencyDeviceToControlLastMs = 0.0f;
+    float LatencyDeviceToControlP95Ms = 0.0f;
+    float ReliabilityOverallPercent = 0.0f;
+    float ReliabilityFramePercent = 0.0f;
+    int32 ReliabilityFramesLost = 0;
+    float ReliabilityAckPercent = 0.0f;
+
+    /** Server-only duration (ms) spent classifying this frame; copied in from the enclosing
+     *  FEegActionResult.InferDurationMs so the HUD's pipeline chart has it alongside the rest
+     *  of the metrics history */
+    float InferDurationMs = 0.0f;
+};
+
 /** One classification result received from the EEG server */
 struct FEegActionResult
 {
@@ -83,10 +107,14 @@ struct FEegActionResult
     /** Classifier confidence in [0, 1]; informational only */
     float Confidence = 0.0f;
 
-    /** Server wall clock (Unix epoch ms) when the inference finished; echoed back in the ack
-     *  so the server can measure inference-to-control latency */
-    double InferMs = 0.0;
+    /** Server-local duration (ms) spent classifying the frame; NOT an absolute timestamp
+     *  (the server may run on a different, unsynchronized-clock machine), informational only
+     *  on this side - the server uses it to derive Metrics.LatencyInferToControl* */
+    double InferDurationMs = 0.0;
 
     /** Per-action probabilities in [0, 1], ordered by EegConfig::ProbOrder */
     float ActionProbs[EegConfig::ProbCount] = {};
+
+    /** Rolling latency/reliability metrics sent alongside this result */
+    FEegMetrics Metrics;
 };
