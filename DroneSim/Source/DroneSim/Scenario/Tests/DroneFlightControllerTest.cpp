@@ -1,5 +1,5 @@
-#include "Misc/AutomationTest.h"
 #include "Scenario/DroneFlightController.h"
+#include "Misc/AutomationTest.h"
 #include "Scenario/DroneFlightModel.h"
 
 #if WITH_DEV_AUTOMATION_TESTS

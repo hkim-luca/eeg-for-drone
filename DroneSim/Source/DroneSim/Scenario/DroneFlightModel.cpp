@@ -48,9 +48,8 @@ void FDroneFlightModel::Advance(double DeltaTimeS, const double MotorCommands[4]
                                       2.0 * K3.AngularAcceleration + K4.AngularAcceleration);
     for (int32 Motor = 0; Motor < 4; ++Motor)
     {
-        State.MotorSpeed[Motor] +=
-            Sixth * (K1.MotorAcceleration[Motor] + 2.0 * K2.MotorAcceleration[Motor] +
-                     2.0 * K3.MotorAcceleration[Motor] + K4.MotorAcceleration[Motor]);
+        State.MotorSpeed[Motor] += Sixth * (K1.MotorAcceleration[Motor] + 2.0 * K2.MotorAcceleration[Motor] +
+                                            2.0 * K3.MotorAcceleration[Motor] + K4.MotorAcceleration[Motor]);
         State.MotorSpeed[Motor] = FMath::Clamp(State.MotorSpeed[Motor], 0.0, Settings.MotorMaxRadS);
     }
 }
@@ -89,8 +88,7 @@ auto FDroneFlightModel::Derivative(const FDroneFlightState &At, const double Mot
     // ground effect: thrust gain grows as the rotor plane nears the terrain
     const double Height = FMath::Max(At.Position.Z - GroundAltitudeM, 0.0);
     const double HeightRatio = Settings.RotorRadiusM / (4.0 * FMath::Max(Height, Settings.RotorRadiusM));
-    const double GroundGain =
-        1.0 / (1.0 - Settings.GroundEffectStrength * FMath::Min(HeightRatio * HeightRatio, 0.25));
+    const double GroundGain = 1.0 / (1.0 - Settings.GroundEffectStrength * FMath::Min(HeightRatio * HeightRatio, 0.25));
 
     double Thrust[4];
     double TotalThrust = 0.0;
@@ -115,8 +113,8 @@ auto FDroneFlightModel::Derivative(const FDroneFlightState &At, const double Mot
                    Lever * (-Thrust[0] - Thrust[1] + Thrust[2] + Thrust[3]), YawTorque);
 
     // rotor gyroscopic torque: -J_r * sum(dir_i * w_i) * (W x z)
-    Torque -= Settings.RotorInertiaKgM2 * GyroMomentum *
-              FVector::CrossProduct(At.AngularVelocity, FVector(0.0, 0.0, 1.0));
+    Torque -=
+        Settings.RotorInertiaKgM2 * GyroMomentum * FVector::CrossProduct(At.AngularVelocity, FVector(0.0, 0.0, 1.0));
 
     // rigid-body rotation (Newton-Euler): I*dW = tau - W x (I*W), diagonal inertia
     const FVector Inertia(Settings.InertiaXX, Settings.InertiaYY, Settings.InertiaZZ);
@@ -127,8 +125,7 @@ auto FDroneFlightModel::Derivative(const FDroneFlightState &At, const double Mot
     const FVector ThrustWorld = At.Attitude.RotateVector(FVector(0.0, 0.0, TotalThrust));
     const FVector Airspeed = At.Velocity - GetWind();
     const FVector Drag = -(Settings.DragLinear * Airspeed + Settings.DragQuadratic * Airspeed.Size() * Airspeed);
-    Out.Acceleration =
-        (ThrustWorld + Drag) / Settings.MassKg + FVector(0.0, 0.0, -Settings.GravityMS2);
+    Out.Acceleration = (ThrustWorld + Drag) / Settings.MassKg + FVector(0.0, 0.0, -Settings.GravityMS2);
     Out.Velocity = At.Velocity;
 
     // attitude kinematics: dQ = 0.5 * Q * (W, 0)

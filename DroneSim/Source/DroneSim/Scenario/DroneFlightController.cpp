@@ -75,8 +75,7 @@ void FDroneFlightController::Compute(const FDroneFlightState &State, const FVect
 
     // --- total thrust: keep the vertical force target despite the current tilt ---
     const double CosTilt = FMath::Max(State.Attitude.RotateVector(FVector::UpVector).Z, 0.5);
-    const double TotalThrust =
-        FMath::Max(Settings.MassKg * (Settings.GravityMS2 + Acceleration.Z) / CosTilt, 0.0);
+    const double TotalThrust = FMath::Max(Settings.MassKg * (Settings.GravityMS2 + Acceleration.Z) / CosTilt, 0.0);
 
     // --- X-quad mixer: orthogonal sign columns invert the thrust/torque mapping exactly ---
     // motor order FR, FL, BL, BR; spin dirs +1,-1,+1,-1 (see FDroneFlightModel)

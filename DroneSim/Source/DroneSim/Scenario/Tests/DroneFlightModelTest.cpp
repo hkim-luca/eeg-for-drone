@@ -1,5 +1,5 @@
-#include "Misc/AutomationTest.h"
 #include "Scenario/DroneFlightModel.h"
+#include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -16,7 +16,7 @@ auto QuietSettings() -> FDronePhysicsSettings
     return Settings;
 }
 
-constexpr double StepS = 0.001;         // 1 kHz, the default SubstepHz
+constexpr double StepS = 0.001;             // 1 kHz, the default SubstepHz
 constexpr double FarBelowGroundM = -1000.0; // keeps the ground-effect term inert
 } // namespace
 
