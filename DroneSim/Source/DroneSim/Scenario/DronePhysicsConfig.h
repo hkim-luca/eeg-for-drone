@@ -30,4 +30,9 @@ class UDronePhysicsConfig : public UObject
     /** Live physics parameters; edited by the settings UI */
     UPROPERTY(Config, EditAnywhere, Category = "Drone Physics")
     FDronePhysicsSettings Settings;
+
+    /** Airframe preset the settings came from; CUSTOM once values are hand-edited.
+     *  Shown on the dashboard next to the parameters. */
+    UPROPERTY(Config, EditAnywhere, Category = "Drone Physics")
+    FString PresetName = TEXT("STANDARD 1.2 kg");
 };

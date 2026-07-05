@@ -2,10 +2,12 @@
 
 #include "Blueprint/UserWidget.h"
 #include "CoreMinimal.h"
+#include "Scenario/DronePhysicsPresets.h"
 
 #include "DronePhysicsSettingsWidget.generated.h"
 
 class UButton;
+class UComboBoxString;
 class USpinBox;
 class UVerticalBox;
 
@@ -44,8 +46,11 @@ class UDronePhysicsSettingsWidget : public UUserWidget
     auto NativeOnKeyDown(const FGeometry &InGeometry, const FKeyEvent &InKeyEvent) -> FReply override;
 
   private:
-    /** Builds the panel hierarchy: title, section headers, parameter rows, buttons */
+    /** Builds the panel hierarchy: title, preset selector, parameter rows, buttons */
     void BuildLayout();
+
+    /** Adds the weight-class preset selector row above the parameter list */
+    void AddPresetRow(UVerticalBox &Column);
 
     /** Adds an amber section caption to the list */
     void AddSectionHeader(UVerticalBox &List, const FString &Title);
@@ -60,6 +65,10 @@ class UDronePhysicsSettingsWidget : public UUserWidget
     UFUNCTION()
     void HandleValueChanged(float InValue);
 
+    /** Applies the chosen weight-class preset to the config and the spin boxes */
+    UFUNCTION()
+    void HandlePresetSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
+
     UFUNCTION()
     void HandleSave();
 
@@ -72,6 +81,13 @@ class UDronePhysicsSettingsWidget : public UUserWidget
     /** Spin boxes in parameter-table order, for bulk read/write */
     UPROPERTY()
     TArray<TObjectPtr<USpinBox>> SpinBoxes;
+
+    /** Weight-class preset selector (MICRO 250 g .. HEAVY LIFT 25 kg) */
+    UPROPERTY()
+    TObjectPtr<UComboBoxString> PresetCombo;
+
+    /** Airframes loaded from Content/Drones/DronePresets.json (built-ins on error) */
+    TArray<FDroneAirframePreset> Presets;
 
     /** Guards HandleValueChanged while RebuildFromConfig is writing the spin boxes */
     bool bRebuilding = false;

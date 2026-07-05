@@ -17,7 +17,7 @@ struct FDronePhysicsSettings
     // --- Airframe (rigid body) ---
 
     /** Total takeoff mass */
-    UPROPERTY(EditAnywhere, Category = "Airframe", meta = (ClampMin = "0.1", ClampMax = "10.0", ForceUnits = "kg"))
+    UPROPERTY(EditAnywhere, Category = "Airframe", meta = (ClampMin = "0.1", ClampMax = "30.0", ForceUnits = "kg"))
     double MassKg = 1.2;
 
     /** Distance from the body center to each motor axis */
@@ -25,15 +25,15 @@ struct FDronePhysicsSettings
     double ArmLengthM = 0.18;
 
     /** Body inertia around the roll (forward) axis */
-    UPROPERTY(EditAnywhere, Category = "Airframe", meta = (ClampMin = "0.0001", ClampMax = "1.0"))
+    UPROPERTY(EditAnywhere, Category = "Airframe", meta = (ClampMin = "0.0001", ClampMax = "10.0"))
     double InertiaXX = 0.012;
 
     /** Body inertia around the pitch (right) axis */
-    UPROPERTY(EditAnywhere, Category = "Airframe", meta = (ClampMin = "0.0001", ClampMax = "1.0"))
+    UPROPERTY(EditAnywhere, Category = "Airframe", meta = (ClampMin = "0.0001", ClampMax = "10.0"))
     double InertiaYY = 0.012;
 
     /** Body inertia around the yaw (up) axis */
-    UPROPERTY(EditAnywhere, Category = "Airframe", meta = (ClampMin = "0.0001", ClampMax = "1.0"))
+    UPROPERTY(EditAnywhere, Category = "Airframe", meta = (ClampMin = "0.0001", ClampMax = "10.0"))
     double InertiaZZ = 0.022;
 
     // --- Motor / rotor (4x, X-quad layout) ---

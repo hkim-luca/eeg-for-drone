@@ -6,6 +6,7 @@
 #include "Components/ButtonSlot.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Components/ComboBoxString.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
@@ -15,6 +16,7 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Scenario/DronePhysicsConfig.h"
+#include "Scenario/DronePhysicsPresets.h"
 #include "Styling/CoreStyle.h"
 
 namespace
@@ -34,11 +36,11 @@ struct FParameterRow
 
 // clang-format off
 const FParameterRow ParameterRows[] = {
-    {TEXT("AIRFRAME"), TEXT("MASS [kg]"),              &FDronePhysicsSettings::MassKg,              nullptr, nullptr, 0.1, 10.0, 3},
+    {TEXT("AIRFRAME"), TEXT("MASS [kg]"),              &FDronePhysicsSettings::MassKg,              nullptr, nullptr, 0.1, 30.0, 3},
     {nullptr,          TEXT("ARM LENGTH [m]"),         &FDronePhysicsSettings::ArmLengthM,          nullptr, nullptr, 0.05, 1.0, 3},
-    {nullptr,          TEXT("INERTIA XX [kg m2]"),     &FDronePhysicsSettings::InertiaXX,           nullptr, nullptr, 0.0001, 1.0, 5},
-    {nullptr,          TEXT("INERTIA YY [kg m2]"),     &FDronePhysicsSettings::InertiaYY,           nullptr, nullptr, 0.0001, 1.0, 5},
-    {nullptr,          TEXT("INERTIA ZZ [kg m2]"),     &FDronePhysicsSettings::InertiaZZ,           nullptr, nullptr, 0.0001, 1.0, 5},
+    {nullptr,          TEXT("INERTIA XX [kg m2]"),     &FDronePhysicsSettings::InertiaXX,           nullptr, nullptr, 0.0001, 10.0, 5},
+    {nullptr,          TEXT("INERTIA YY [kg m2]"),     &FDronePhysicsSettings::InertiaYY,           nullptr, nullptr, 0.0001, 10.0, 5},
+    {nullptr,          TEXT("INERTIA ZZ [kg m2]"),     &FDronePhysicsSettings::InertiaZZ,           nullptr, nullptr, 0.0001, 10.0, 5},
     {TEXT("MOTOR"),    TEXT("TIME CONST [s]"),         &FDronePhysicsSettings::MotorTimeConstantS,  nullptr, nullptr, 0.005, 0.5, 3},
     {nullptr,          TEXT("THRUST COEF kT"),         &FDronePhysicsSettings::ThrustCoefficient,   nullptr, nullptr, 1e-7, 1e-3, 9},
     {nullptr,          TEXT("TORQUE COEF kQ"),         &FDronePhysicsSettings::TorqueCoefficient,   nullptr, nullptr, 1e-9, 1e-4, 10},
@@ -142,6 +144,8 @@ void UDronePhysicsSettingsWidget::BuildLayout()
     Title->SetColorAndOpacity(FSlateColor(TitleColor));
     Column->AddChildToVerticalBox(Title)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
 
+    AddPresetRow(*Column);
+
     USizeBox *ScrollLimit = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
     ScrollLimit->SetMaxDesiredHeight(620.0f);
     Column->AddChildToVerticalBox(ScrollLimit);
@@ -168,6 +172,33 @@ void UDronePhysicsSettingsWidget::BuildLayout()
     AddButton(*ButtonBar, TEXT("SAVE"))->OnClicked.AddDynamic(this, &UDronePhysicsSettingsWidget::HandleSave);
     AddButton(*ButtonBar, TEXT("DEFAULTS"))->OnClicked.AddDynamic(this, &UDronePhysicsSettingsWidget::HandleReset);
     AddButton(*ButtonBar, TEXT("CLOSE"))->OnClicked.AddDynamic(this, &UDronePhysicsSettingsWidget::HandleClose);
+}
+
+void UDronePhysicsSettingsWidget::AddPresetRow(UVerticalBox &Column)
+{
+    UHorizontalBox *Line = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+    Column.AddChildToVerticalBox(Line)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
+
+    UTextBlock *Label = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+    Label->SetText(FText::FromString(TEXT("PRESET")));
+    Label->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 11));
+    Label->SetColorAndOpacity(FSlateColor(SectionColor));
+    UHorizontalBoxSlot *LabelSlot = Line->AddChildToHorizontalBox(Label);
+    LabelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    LabelSlot->SetVerticalAlignment(VAlign_Center);
+
+    PresetCombo = WidgetTree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass());
+    Presets = DronePhysicsPresets::LoadPresets();
+    for (const FDroneAirframePreset &Preset : Presets)
+    {
+        PresetCombo->AddOption(Preset.Name);
+    }
+    PresetCombo->OnSelectionChanged.AddDynamic(this, &UDronePhysicsSettingsWidget::HandlePresetSelected);
+
+    USizeBox *ComboSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+    ComboSize->SetWidthOverride(200.0f);
+    ComboSize->SetContent(PresetCombo);
+    Line->AddChildToHorizontalBox(ComboSize);
 }
 
 void UDronePhysicsSettingsWidget::AddSectionHeader(UVerticalBox &List, const FString &SectionTitle)
@@ -228,11 +259,15 @@ auto UDronePhysicsSettingsWidget::AddButton(UHorizontalBox &Bar, const FString &
 
 void UDronePhysicsSettingsWidget::RebuildFromConfig()
 {
-    const FDronePhysicsSettings &Settings = UDronePhysicsConfig::Get()->Settings;
+    const UDronePhysicsConfig *Config = UDronePhysicsConfig::Get();
     bRebuilding = true;
     for (int32 RowIndex = 0; RowIndex < ParameterRowCount && RowIndex < SpinBoxes.Num(); ++RowIndex)
     {
-        SpinBoxes[RowIndex]->SetValue(RowValue(Settings, ParameterRows[RowIndex]));
+        SpinBoxes[RowIndex]->SetValue(RowValue(Config->Settings, ParameterRows[RowIndex]));
+    }
+    if (PresetCombo != nullptr) // Direct selection, so HandlePresetSelected ignores it
+    {
+        PresetCombo->SetSelectedOption(Config->PresetName);
     }
     bRebuilding = false;
 }
@@ -244,12 +279,40 @@ void UDronePhysicsSettingsWidget::HandleValueChanged(float InValue)
         return;
     }
 
-    FDronePhysicsSettings &Settings = UDronePhysicsConfig::Get()->Settings;
+    UDronePhysicsConfig *Config = UDronePhysicsConfig::Get();
     for (int32 RowIndex = 0; RowIndex < ParameterRowCount && RowIndex < SpinBoxes.Num(); ++RowIndex)
     {
-        SetRowValue(Settings, ParameterRows[RowIndex], SpinBoxes[RowIndex]->GetValue());
+        SetRowValue(Config->Settings, ParameterRows[RowIndex], SpinBoxes[RowIndex]->GetValue());
+    }
+
+    // hand-edited values no longer match any airframe preset
+    Config->PresetName = DronePhysicsPresets::CustomName;
+    if (PresetCombo != nullptr)
+    {
+        PresetCombo->ClearSelection();
     }
     OnSettingsChanged.Broadcast();
+}
+
+void UDronePhysicsSettingsWidget::HandlePresetSelected(FString SelectedItem, ESelectInfo::Type SelectionType)
+{
+    if (SelectionType == ESelectInfo::Direct) // programmatic changes must not re-apply
+    {
+        return;
+    }
+
+    for (const FDroneAirframePreset &Preset : Presets)
+    {
+        if (SelectedItem == Preset.Name)
+        {
+            UDronePhysicsConfig *Config = UDronePhysicsConfig::Get();
+            Config->Settings = Preset.Settings;
+            Config->PresetName = Preset.Name;
+            RebuildFromConfig();
+            OnSettingsChanged.Broadcast();
+            return;
+        }
+    }
 }
 
 void UDronePhysicsSettingsWidget::HandleSave()
