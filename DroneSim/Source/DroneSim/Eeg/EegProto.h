@@ -12,10 +12,15 @@
  *  Encoded payloads are exchanged behind a 4-byte little-endian length prefix, which
  *  FEegClient adds and strips.
  */
+struct FDronePhysicsSettings;
+
 namespace EegProto
 {
 /** Encodes one EEG frame as a ClientMessage payload; SentMs is stamped by the caller */
 auto EncodeEegFrame(const FEegFrame &Frame, double SentMs) -> TArray<uint8>;
+
+/** Encodes the current drone physics parameters for the dashboard's settings panel */
+auto EncodePhysicsSettings(const FDronePhysicsSettings &Settings) -> TArray<uint8>;
 
 /** Encodes the control ack confirming that ActionSeq reached the pawn at ControlMs */
 auto EncodeControlAck(int64 ActionSeq, double ControlMs) -> TArray<uint8>;

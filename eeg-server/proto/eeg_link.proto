@@ -29,11 +29,40 @@ message ControlAck {
   double t_control_ms = 2;   // Unix epoch ms when the movement input was applied
 }
 
+// Current drone physics parameters (DroneSim -> server), sent when the link
+// comes up and again after every edit in the in-game settings UI, so the
+// dashboard can display the active simulation setup. SI units throughout.
+message PhysicsSettings {
+  double mass_kg = 1;
+  double arm_length_m = 2;
+  double inertia_xx = 3;
+  double inertia_yy = 4;
+  double inertia_zz = 5;
+  double motor_time_constant_s = 6;
+  double thrust_coefficient = 7;    // kT, N/(rad/s)^2 at sea-level density
+  double torque_coefficient = 8;    // kQ, N*m/(rad/s)^2
+  double motor_max_rad_s = 9;
+  double rotor_inertia = 10;        // J_r, kg*m^2
+  double rotor_radius_m = 11;
+  double air_density = 12;          // kg/m^3
+  double drag_linear = 13;          // N/(m/s)
+  double drag_quadratic = 14;       // N/(m/s)^2
+  double gravity = 15;              // m/s^2
+  double ground_effect_strength = 16; // 0 (off) .. 1
+  double wind_x = 17;               // steady wind, m/s
+  double wind_y = 18;
+  double gust_intensity = 19;       // gust standard deviation, m/s
+  double max_tilt_deg = 20;
+  double max_speed_ms = 21;
+  int32 substep_hz = 22;            // RK4 integration rate
+}
+
 // Everything DroneSim sends.
 message ClientMessage {
   oneof msg {
     EegFrame eeg = 1;
     ControlAck ack = 2;
+    PhysicsSettings physics = 3;
   }
 }
 

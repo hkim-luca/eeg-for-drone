@@ -68,7 +68,7 @@ const FParameterRow ParameterRows[] = {
 };
 // clang-format on
 
-constexpr int32 RowCount = UE_ARRAY_COUNT(ParameterRows);
+constexpr int32 ParameterRowCount = UE_ARRAY_COUNT(ParameterRows);
 
 /** OSD palette shared with the telemetry widgets */
 const FLinearColor PanelBackground(0.01f, 0.012f, 0.01f, 0.88f);
@@ -153,7 +153,7 @@ void UDronePhysicsSettingsWidget::BuildLayout()
     Scroll->AddChild(List);
 
     SpinBoxes.Reset();
-    for (int32 RowIndex = 0; RowIndex < RowCount; ++RowIndex)
+    for (int32 RowIndex = 0; RowIndex < ParameterRowCount; ++RowIndex)
     {
         if (ParameterRows[RowIndex].Section != nullptr)
         {
@@ -230,7 +230,7 @@ void UDronePhysicsSettingsWidget::RebuildFromConfig()
 {
     const FDronePhysicsSettings &Settings = UDronePhysicsConfig::Get()->Settings;
     bRebuilding = true;
-    for (int32 RowIndex = 0; RowIndex < RowCount && RowIndex < SpinBoxes.Num(); ++RowIndex)
+    for (int32 RowIndex = 0; RowIndex < ParameterRowCount && RowIndex < SpinBoxes.Num(); ++RowIndex)
     {
         SpinBoxes[RowIndex]->SetValue(RowValue(Settings, ParameterRows[RowIndex]));
     }
@@ -245,7 +245,7 @@ void UDronePhysicsSettingsWidget::HandleValueChanged(float InValue)
     }
 
     FDronePhysicsSettings &Settings = UDronePhysicsConfig::Get()->Settings;
-    for (int32 RowIndex = 0; RowIndex < RowCount && RowIndex < SpinBoxes.Num(); ++RowIndex)
+    for (int32 RowIndex = 0; RowIndex < ParameterRowCount && RowIndex < SpinBoxes.Num(); ++RowIndex)
     {
         SetRowValue(Settings, ParameterRows[RowIndex], SpinBoxes[RowIndex]->GetValue());
     }

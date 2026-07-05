@@ -1,4 +1,5 @@
 #include "EegProto.h"
+#include "DronePhysicsSettings.h"
 
 namespace
 {
@@ -269,6 +270,36 @@ auto EncodeEegFrame(const FEegFrame &Frame, double SentMs) -> TArray<uint8>
     AppendVarintField(Inner, 4, EegConfig::ChannelCount);
     AppendPackedFloatField(Inner, 6, Frame.Samples);
     return WrapAsEnvelope(1, Inner); // ClientMessage.eeg
+}
+
+auto EncodePhysicsSettings(const FDronePhysicsSettings &Settings) -> TArray<uint8>
+{
+    // field numbers follow message PhysicsSettings in eeg_link.proto
+    TArray<uint8> Inner;
+    Inner.Reserve(22 * 10);
+    AppendDoubleField(Inner, 1, Settings.MassKg);
+    AppendDoubleField(Inner, 2, Settings.ArmLengthM);
+    AppendDoubleField(Inner, 3, Settings.InertiaXX);
+    AppendDoubleField(Inner, 4, Settings.InertiaYY);
+    AppendDoubleField(Inner, 5, Settings.InertiaZZ);
+    AppendDoubleField(Inner, 6, Settings.MotorTimeConstantS);
+    AppendDoubleField(Inner, 7, Settings.ThrustCoefficient);
+    AppendDoubleField(Inner, 8, Settings.TorqueCoefficient);
+    AppendDoubleField(Inner, 9, Settings.MotorMaxRadS);
+    AppendDoubleField(Inner, 10, Settings.RotorInertiaKgM2);
+    AppendDoubleField(Inner, 11, Settings.RotorRadiusM);
+    AppendDoubleField(Inner, 12, Settings.AirDensity);
+    AppendDoubleField(Inner, 13, Settings.DragLinear);
+    AppendDoubleField(Inner, 14, Settings.DragQuadratic);
+    AppendDoubleField(Inner, 15, Settings.GravityMS2);
+    AppendDoubleField(Inner, 16, Settings.GroundEffectStrength);
+    AppendDoubleField(Inner, 17, Settings.WindXMS);
+    AppendDoubleField(Inner, 18, Settings.WindYMS);
+    AppendDoubleField(Inner, 19, Settings.GustIntensityMS);
+    AppendDoubleField(Inner, 20, Settings.MaxTiltDeg);
+    AppendDoubleField(Inner, 21, Settings.MaxSpeedMS);
+    AppendVarintField(Inner, 22, static_cast<uint64>(Settings.SubstepHz));
+    return WrapAsEnvelope(3, Inner); // ClientMessage.physics
 }
 
 auto EncodeControlAck(int64 ActionSeq, double ControlMs) -> TArray<uint8>

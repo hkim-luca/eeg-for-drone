@@ -107,6 +107,10 @@ void UEegRunnerComponent::NotifySettingsChanged()
     {
         Physics.UpdateSettings(UDronePhysicsConfig::Get()->Settings);
     }
+    if (Client.IsConnected())
+    {
+        Client.SendPayload(EegProto::EncodePhysicsSettings(UDronePhysicsConfig::Get()->Settings));
+    }
 }
 
 auto UEegRunnerComponent::GetCurrentTilt() const -> FRotator
@@ -134,6 +138,11 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         {
             CurrentAction = EScenarioAction::Stop; // stale commands must not keep the drone moving
             PublishActionLabel(ConnectingLabel);
+        }
+        else
+        {
+            // every (re)connect: show the active physics setup on the dashboard
+            Client.SendPayload(EegProto::EncodePhysicsSettings(UDronePhysicsConfig::Get()->Settings));
         }
     }
 
