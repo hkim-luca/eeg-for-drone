@@ -4,10 +4,12 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+// note: names must not clash with DroneFlightModelTest.cpp - the unity build merges
+// the anonymous namespaces of both test files into one translation unit
 namespace
 {
 /** Settings with every disturbance disabled so the tests are deterministic */
-auto QuietSettings() -> FDronePhysicsSettings
+auto QuietControllerSettings() -> FDronePhysicsSettings
 {
     FDronePhysicsSettings Settings;
     Settings.GroundEffectStrength = 0.0;
@@ -17,18 +19,18 @@ auto QuietSettings() -> FDronePhysicsSettings
     return Settings;
 }
 
-constexpr double StepS = 0.001; // 1 kHz, the default SubstepHz
+constexpr double CtrlStepS = 0.001; // 1 kHz, the default SubstepHz
 
 /** Runs the closed loop (controller + model) for the given duration */
 void RunClosedLoop(FDroneFlightController &Controller, FDroneFlightModel &Model, const FVector &MoveDirection,
                    double DurationS)
 {
-    const int32 Steps = static_cast<int32>(DurationS / StepS);
-    for (int32 Step = 0; Step < Steps; ++Step)
+    const int32 StepCount = static_cast<int32>(DurationS / CtrlStepS);
+    for (int32 Step = 0; Step < StepCount; ++Step)
     {
         double Commands[4] = {};
-        Controller.Compute(Model.GetState(), MoveDirection, StepS, Commands);
-        Model.Advance(StepS, Commands, -1000.0);
+        Controller.Compute(Model.GetState(), MoveDirection, CtrlStepS, Commands);
+        Model.Advance(CtrlStepS, Commands, -1000.0);
     }
 }
 } // namespace
@@ -37,7 +39,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDroneControllerHoverCommandTest, "DroneSim.Phy
                                  EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 auto FDroneControllerHoverCommandTest::RunTest(const FString &Parameters) -> bool
 {
-    const FDronePhysicsSettings Settings = QuietSettings();
+    const FDronePhysicsSettings Settings = QuietControllerSettings();
     FDroneFlightModel Model;
     Model.SetSettings(Settings);
     Model.Reset(FVector(0.0, 0.0, 5.0), 0.0);
@@ -47,7 +49,7 @@ auto FDroneControllerHoverCommandTest::RunTest(const FString &Parameters) -> boo
     Controller.Reset(Settings, /*HoldAltitudeM=*/5.0, /*HoldYawRad=*/0.0);
 
     double Commands[4] = {};
-    Controller.Compute(Model.GetState(), FVector::ZeroVector, StepS, Commands);
+    Controller.Compute(Model.GetState(), FVector::ZeroVector, CtrlStepS, Commands);
 
     const double Hover = Model.HoverMotorSpeed();
     for (int32 Motor = 0; Motor < 4; ++Motor)
@@ -62,7 +64,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDroneControllerTakeoffTest, "DroneSim.Physics.
                                  EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 auto FDroneControllerTakeoffTest::RunTest(const FString &Parameters) -> bool
 {
-    const FDronePhysicsSettings Settings = QuietSettings();
+    const FDronePhysicsSettings Settings = QuietControllerSettings();
     FDroneFlightModel Model;
     Model.SetSettings(Settings);
     Model.Reset(FVector::ZeroVector, 0.0);
@@ -82,7 +84,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDroneControllerCruiseTest, "DroneSim.Physics.C
                                  EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 auto FDroneControllerCruiseTest::RunTest(const FString &Parameters) -> bool
 {
-    FDronePhysicsSettings Settings = QuietSettings();
+    FDronePhysicsSettings Settings = QuietControllerSettings();
     Settings.MaxSpeedMS = 10.0;
     FDroneFlightModel Model;
     Model.SetSettings(Settings);
@@ -92,13 +94,13 @@ auto FDroneControllerCruiseTest::RunTest(const FString &Parameters) -> bool
     Controller.Reset(Settings, 5.0, 0.0);
 
     // command forward (+X) and watch the tilt limit the whole way
-    const int32 Steps = 6000; // 6 s
+    const int32 StepCount = 6000; // 6 s
     double MaxTiltSeen = 0.0;
-    for (int32 Step = 0; Step < Steps; ++Step)
+    for (int32 Step = 0; Step < StepCount; ++Step)
     {
         double Commands[4] = {};
-        Controller.Compute(Model.GetState(), FVector::ForwardVector, StepS, Commands);
-        Model.Advance(StepS, Commands, -1000.0);
+        Controller.Compute(Model.GetState(), FVector::ForwardVector, CtrlStepS, Commands);
+        Model.Advance(CtrlStepS, Commands, -1000.0);
 
         const double CosTilt = Model.GetState().Attitude.RotateVector(FVector::UpVector).Z;
         MaxTiltSeen = FMath::Max(MaxTiltSeen, FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(CosTilt, -1.0, 1.0))));
