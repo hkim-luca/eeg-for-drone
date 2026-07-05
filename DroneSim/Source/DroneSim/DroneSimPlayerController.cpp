@@ -1,6 +1,7 @@
 #include "DroneSimPlayerController.h"
 #include "Blueprint/UserWidget.h"
 #include "DroneSim.h"
+#include "Eeg/DronePhysicsSettingsWidget.h"
 #include "Eeg/EegHudWidget.h"
 #include "Eeg/EegRunnerComponent.h"
 #include "Engine/Engine.h"
@@ -219,6 +220,9 @@ void ADroneSimPlayerController::SetupInputComponent()
     // only add IMCs for local player controllers
     if (IsLocalPlayerController())
     {
+        // physics settings panel toggle; a legacy key binding so no IMC asset is needed
+        InputComponent->BindKey(EKeys::P, IE_Pressed, this, &ADroneSimPlayerController::TogglePhysicsSettings);
+
         // Add Input Mapping Contexts
         if (UEnhancedInputLocalPlayerSubsystem *Subsystem =
                 ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
@@ -238,6 +242,58 @@ void ADroneSimPlayerController::SetupInputComponent()
             }
         }
     }
+}
+
+void ADroneSimPlayerController::TogglePhysicsSettings()
+{
+    if (PhysicsSettingsWidget != nullptr && PhysicsSettingsWidget->IsInViewport())
+    {
+        ClosePhysicsSettings();
+        return;
+    }
+
+    if (PhysicsSettingsWidget == nullptr)
+    {
+        // the widget builds its whole layout in C++, so its class is used directly
+        PhysicsSettingsWidget =
+            CreateWidget<UDronePhysicsSettingsWidget>(this, UDronePhysicsSettingsWidget::StaticClass());
+        if (PhysicsSettingsWidget == nullptr)
+        {
+            FScenarioLog::Error(TEXT("Could not create the drone physics settings widget"));
+            return;
+        }
+        PhysicsSettingsWidget->OnSettingsChanged.AddDynamic(this,
+                                                            &ADroneSimPlayerController::HandlePhysicsSettingsChanged);
+        PhysicsSettingsWidget->OnCloseRequested.AddDynamic(this, &ADroneSimPlayerController::ClosePhysicsSettings);
+    }
+
+    PhysicsSettingsWidget->RebuildFromConfig();
+    PhysicsSettingsWidget->AddToViewport(20);
+
+    // UI-only input while editing; the game keeps simulating behind the panel
+    SetInputMode(FInputModeUIOnly().SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
+    SetShowMouseCursor(true);
+    PhysicsSettingsWidget->SetKeyboardFocus();
+    FScenarioLog::Info(TEXT("Drone physics settings opened"));
+}
+
+void ADroneSimPlayerController::ClosePhysicsSettings()
+{
+    if (PhysicsSettingsWidget == nullptr || !PhysicsSettingsWidget->IsInViewport())
+    {
+        return;
+    }
+
+    PhysicsSettingsWidget->RemoveFromParent();
+    SetInputMode(FInputModeGameOnly());
+    SetShowMouseCursor(false);
+    FScenarioLog::Info(TEXT("Drone physics settings closed"));
+}
+
+void ADroneSimPlayerController::HandlePhysicsSettingsChanged()
+{
+    EegRunner->NotifySettingsChanged();
+    ScenarioRunner->NotifySettingsChanged();
 }
 
 auto ADroneSimPlayerController::ShouldUseTouchControls() const -> bool

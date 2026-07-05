@@ -6,6 +6,7 @@
 
 #include "DroneSimPlayerController.generated.h"
 
+class UDronePhysicsSettingsWidget;
 class UDroneTelemetryComponent;
 class UEegHudWidget;
 class UEegRunnerComponent;
@@ -94,6 +95,10 @@ class ADroneSimPlayerController : public APlayerController
     UPROPERTY()
     TObjectPtr<UEegHudWidget> EegHudWidget;
 
+    /** Drone physics settings panel, toggled with the P key; built entirely in C++ */
+    UPROPERTY()
+    TObjectPtr<UDronePhysicsSettingsWidget> PhysicsSettingsWidget;
+
     /** Component that plays scenarios and records positions */
     UPROPERTY(VisibleAnywhere, Category = "Scenario")
     TObjectPtr<UScenarioRunnerComponent> ScenarioRunner;
@@ -120,6 +125,17 @@ class ADroneSimPlayerController : public APlayerController
      *  (no menu is shown unless the game was launched with -recording).
      *  The mode runs until the game exits. */
     void StartEegRunningMode();
+
+    /** Shows or hides the drone physics settings panel (P key) */
+    void TogglePhysicsSettings();
+
+    /** Hides the settings panel and returns input to the game */
+    UFUNCTION()
+    void ClosePhysicsSettings();
+
+    /** Pushes edited physics parameters into whichever runner is flying right now */
+    UFUNCTION()
+    void HandlePhysicsSettingsChanged();
 
     /** Saves the CSV and returns to the initial screen when the scenario ends */
     UFUNCTION()
