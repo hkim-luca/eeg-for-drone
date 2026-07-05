@@ -106,8 +106,20 @@ auto FDroneControllerCruiseTest::RunTest(const FString &Parameters) -> bool
         MaxTiltSeen = FMath::Max(MaxTiltSeen, FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(CosTilt, -1.0, 1.0))));
     }
 
+    // the 10 m/s setpoint is NOT reachable: at the tilt limit the horizontal thrust is
+    // m*g*tan(MaxTilt) and drag balances it at the analytic steady-state speed below
+    // (c2*v^2 + c1*v = F). The cruise speed must sit on that physical limit instead.
+    const double MaxForce =
+        Settings.MassKg * Settings.GravityMS2 * FMath::Tan(FMath::DegreesToRadians(Settings.MaxTiltDeg));
+    const double SteadySpeed = (-Settings.DragLinear + FMath::Sqrt(Settings.DragLinear * Settings.DragLinear +
+                                                                   4.0 * Settings.DragQuadratic * MaxForce)) /
+                               (2.0 * Settings.DragQuadratic);
+
     const FDroneFlightState &State = Model.GetState();
-    TestTrue(TEXT("accelerated toward +X"), State.Velocity.X > 0.8 * Settings.MaxSpeedMS);
+    UE_LOG(LogTemp, Display, TEXT("ForwardCruise: vx=%.2f m/s, analytic drag-limited steady state=%.2f m/s"),
+           State.Velocity.X, SteadySpeed);
+    TestTrue(TEXT("cruise speed reaches the drag-limited steady state"), State.Velocity.X > 0.85 * SteadySpeed);
+    TestTrue(TEXT("cruise speed does not exceed the physical limit"), State.Velocity.X < 1.05 * SteadySpeed);
     TestTrue(TEXT("no sideways drift"), FMath::Abs(State.Velocity.Y) < 0.5);
     TestTrue(TEXT("altitude held while cruising"), FMath::Abs(State.Position.Z - 5.0) < 0.5);
     TestTrue(TEXT("tilt limit respected"), MaxTiltSeen < Settings.MaxTiltDeg + 3.0);

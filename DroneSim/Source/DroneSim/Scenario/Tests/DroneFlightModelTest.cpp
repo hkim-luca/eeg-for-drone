@@ -124,4 +124,51 @@ auto FDroneFlightModelDragDecayTest::RunTest(const FString &Parameters) -> bool
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDroneFlightModelConvergenceTest, "DroneSim.Physics.FlightModel.Rk4Convergence",
+                                 EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+auto FDroneFlightModelConvergenceTest::RunTest(const FString &Parameters) -> bool
+{
+    // classic order-of-accuracy proof: halving the step must shrink the global error
+    // by ~2^4 for a 4th-order integrator. The scenario keeps every clamp and the
+    // stochastic gust inactive so the dynamics stay smooth over the whole window.
+    const FDronePhysicsSettings Settings = QuietSettings();
+
+    auto Simulate = [&Settings](double StepSize) -> FDroneFlightState {
+        FDroneFlightModel Model;
+        Model.SetSettings(Settings);
+        Model.Reset(FVector(0.0, 0.0, 50.0), 0.2);
+        const double Hover = Model.HoverMotorSpeed();
+        // mildly asymmetric commands: nontrivial coupled translation + rotation
+        const double Commands[4] = {Hover * 1.02, Hover * 0.99, Hover * 1.01, Hover * 0.98};
+        for (int32 Motor = 0; Motor < 4; ++Motor)
+        {
+            Model.GetMutableState().MotorSpeed[Motor] = Hover;
+        }
+        const int32 Steps = static_cast<int32>(1.0 / StepSize); // 1 s window
+        for (int32 Step = 0; Step < Steps; ++Step)
+        {
+            Model.Advance(StepSize, Commands, FarBelowGroundM);
+        }
+        return Model.GetState();
+    };
+
+    // reference solution at a much finer step than any measured one
+    const FDroneFlightState Reference = Simulate(1.0 / 32768.0);
+    auto ErrorAt = [&](double StepSize) -> double {
+        const FDroneFlightState Coarse = Simulate(StepSize);
+        return (Coarse.Position - Reference.Position).Size() + (Coarse.Velocity - Reference.Velocity).Size();
+    };
+
+    const double ErrorCoarse = ErrorAt(1.0 / 256.0);
+    const double ErrorFine = ErrorAt(1.0 / 512.0);
+    const double Order = FMath::Log2(ErrorCoarse / ErrorFine);
+
+    UE_LOG(LogTemp, Display, TEXT("Rk4Convergence: global error h=1/256 -> %.3e, h=1/512 -> %.3e, observed order=%.2f"),
+           ErrorCoarse, ErrorFine, Order);
+    TestTrue(TEXT("coarse step still integrates (error finite)"), FMath::IsFinite(ErrorCoarse));
+    // theory says 4.0; anything clearly above 3 proves 4th-order behavior with rounding noise
+    TestTrue(TEXT("observed convergence order is 4th-order"), Order > 3.0);
+    return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
