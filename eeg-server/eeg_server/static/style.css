@@ -142,6 +142,17 @@ h1 { font-size: 20px; font-weight: 650; }
 
 /* drone physics settings: 4 parameter-group columns of label/value pairs */
 .physics-tile { margin-bottom: 12px; }
+.physics-preset {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-left: 8px;
+  font-size: 11px;
+}
+.physics-preset:empty { display: none; }
 .physics-grid {
   display: grid;
   gap: 16px;

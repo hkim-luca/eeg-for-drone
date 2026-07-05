@@ -78,6 +78,7 @@ function renderPhysicsSettings(settings) {
   const hasData = settings && Object.keys(settings).length > 0;
   grid.hidden = !hasData;
   empty.hidden = hasData;
+  setText("physics-preset", hasData ? (settings.preset_name ?? "") : "");
   if (!hasData) return;
 
   // proto3 omits zero-valued fields, so show 0 for known-but-absent ones

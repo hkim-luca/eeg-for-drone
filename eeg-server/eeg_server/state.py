@@ -40,7 +40,7 @@ class ServerState:
         self._latency_times: Deque[str] = deque(maxlen=config.PROB_HISTORY_LENGTH)
         #: Drone physics parameters last announced by DroneSim (proto field names);
         #: empty until the first PhysicsSettings message arrives.
-        self._physics_settings: dict[str, float] = {}
+        self._physics_settings: dict[str, object] = {}
 
     def set_connected(self, connected: bool) -> None:
         with self._lock:
@@ -87,7 +87,7 @@ class ServerState:
             ])
             self._latency_times.append(time_label)
 
-    def on_physics_settings(self, settings: dict[str, float]) -> None:
+    def on_physics_settings(self, settings: dict[str, object]) -> None:
         """Stores the physics parameters DroneSim announced, keyed by proto field name."""
         with self._lock:
             self._physics_settings = dict(settings)

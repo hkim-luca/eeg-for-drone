@@ -109,7 +109,8 @@ void UEegRunnerComponent::NotifySettingsChanged()
     }
     if (Client.IsConnected())
     {
-        Client.SendPayload(EegProto::EncodePhysicsSettings(UDronePhysicsConfig::Get()->Settings));
+        Client.SendPayload(EegProto::EncodePhysicsSettings(UDronePhysicsConfig::Get()->Settings,
+                                                           UDronePhysicsConfig::Get()->PresetName));
     }
 }
 
@@ -142,7 +143,8 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         else
         {
             // every (re)connect: show the active physics setup on the dashboard
-            Client.SendPayload(EegProto::EncodePhysicsSettings(UDronePhysicsConfig::Get()->Settings));
+            Client.SendPayload(EegProto::EncodePhysicsSettings(UDronePhysicsConfig::Get()->Settings,
+                                                               UDronePhysicsConfig::Get()->PresetName));
         }
     }
 

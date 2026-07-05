@@ -55,6 +55,17 @@ void AppendDoubleField(TArray<uint8> &Out, uint32 FieldNumber, double Value)
     }
 }
 
+void AppendStringField(TArray<uint8> &Out, uint32 FieldNumber, const FString &Value)
+{
+    if (!Value.IsEmpty())
+    {
+        const FTCHARToUTF8 Utf8(*Value);
+        AppendTag(Out, FieldNumber, WireLengthDelimited);
+        AppendVarint(Out, static_cast<uint64>(Utf8.Length()));
+        Out.Append(reinterpret_cast<const uint8 *>(Utf8.Get()), Utf8.Length());
+    }
+}
+
 void AppendPackedFloatField(TArray<uint8> &Out, uint32 FieldNumber, const TArray<float> &Values)
 {
     if (!Values.IsEmpty())
@@ -272,7 +283,7 @@ auto EncodeEegFrame(const FEegFrame &Frame, double SentMs) -> TArray<uint8>
     return WrapAsEnvelope(1, Inner); // ClientMessage.eeg
 }
 
-auto EncodePhysicsSettings(const FDronePhysicsSettings &Settings) -> TArray<uint8>
+auto EncodePhysicsSettings(const FDronePhysicsSettings &Settings, const FString &PresetName) -> TArray<uint8>
 {
     // field numbers follow message PhysicsSettings in eeg_link.proto
     TArray<uint8> Inner;
@@ -299,6 +310,7 @@ auto EncodePhysicsSettings(const FDronePhysicsSettings &Settings) -> TArray<uint
     AppendDoubleField(Inner, 20, Settings.MaxTiltDeg);
     AppendDoubleField(Inner, 21, Settings.MaxSpeedMS);
     AppendVarintField(Inner, 22, static_cast<uint64>(Settings.SubstepHz));
+    AppendStringField(Inner, 23, PresetName);
     return WrapAsEnvelope(3, Inner); // ClientMessage.physics
 }
 

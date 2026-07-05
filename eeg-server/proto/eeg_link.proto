@@ -55,6 +55,7 @@ message PhysicsSettings {
   double max_tilt_deg = 20;
   double max_speed_ms = 21;
   int32 substep_hz = 22;            // RK4 integration rate
+  string preset_name = 23;          // airframe preset the values came from; CUSTOM if hand-edited
 }
 
 // Everything DroneSim sends.
