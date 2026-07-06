@@ -35,14 +35,24 @@ auto FDronePresetsJsonTest::RunTest(const FString &Parameters) -> bool
 
     double MinMass = TNumericLimits<double>::Max();
     double MaxMass = 0.0;
+    bool bAnyHexa = false;
+    bool bAnyOcto = false;
     for (int32 Index = 0; Index < Presets.Num(); ++Index)
     {
         TestFalse(FString::Printf(TEXT("preset %d has a name"), Index), Presets[Index].Name.IsEmpty());
+        // every preset must have resolved an airframe model (rotor layout + body mesh)
+        TestFalse(FString::Printf(TEXT("preset %d references a model"), Index), Presets[Index].ModelName.IsEmpty());
+        TestFalse(FString::Printf(TEXT("preset %d resolved a body mesh"), Index),
+                  Presets[Index].Settings.AirframeMeshPath.IsEmpty());
         MinMass = FMath::Min(MinMass, Presets[Index].Settings.MassKg);
         MaxMass = FMath::Max(MaxMass, Presets[Index].Settings.MassKg);
+        bAnyHexa = bAnyHexa || Presets[Index].Settings.MotorCount == 6;
+        bAnyOcto = bAnyOcto || Presets[Index].Settings.MotorCount == 8;
     }
     TestTrue(TEXT("covers the sub-250 g class"), MinMass < 0.3);
     TestTrue(TEXT("covers the 25 kg class"), MaxMass >= 25.0);
+    TestTrue(TEXT("a hexa model is in the lineup"), bAnyHexa);
+    TestTrue(TEXT("an octo model is in the lineup"), bAnyOcto);
     return true;
 }
 
@@ -87,7 +97,7 @@ auto FDronePresetsTakeoffTest::RunTest(const FString &Parameters) -> bool
         const int32 StepCount = static_cast<int32>(DurationS / PresetStepS);
         for (int32 Step = 0; Step < StepCount; ++Step)
         {
-            double Commands[4] = {};
+            double Commands[DroneMaxMotorCount] = {};
             Controller.Compute(Model.GetState(), FVector::ZeroVector, PresetStepS, Commands);
             Model.Advance(PresetStepS, Commands, -1000.0);
         }

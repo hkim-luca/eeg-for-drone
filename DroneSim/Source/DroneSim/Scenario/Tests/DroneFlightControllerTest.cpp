@@ -28,7 +28,7 @@ void RunClosedLoop(FDroneFlightController &Controller, FDroneFlightModel &Model,
     const int32 StepCount = static_cast<int32>(DurationS / CtrlStepS);
     for (int32 Step = 0; Step < StepCount; ++Step)
     {
-        double Commands[4] = {};
+        double Commands[DroneMaxMotorCount] = {};
         Controller.Compute(Model.GetState(), MoveDirection, CtrlStepS, Commands);
         Model.Advance(CtrlStepS, Commands, -1000.0);
     }
@@ -48,7 +48,7 @@ auto FDroneControllerHoverCommandTest::RunTest(const FString &Parameters) -> boo
     FDroneFlightController Controller;
     Controller.Reset(Settings, /*HoldAltitudeM=*/5.0, /*HoldYawRad=*/0.0);
 
-    double Commands[4] = {};
+    double Commands[DroneMaxMotorCount] = {};
     Controller.Compute(Model.GetState(), FVector::ZeroVector, CtrlStepS, Commands);
 
     const double Hover = Model.HoverMotorSpeed();
@@ -98,7 +98,7 @@ auto FDroneControllerCruiseTest::RunTest(const FString &Parameters) -> bool
     double MaxTiltSeen = 0.0;
     for (int32 Step = 0; Step < StepCount; ++Step)
     {
-        double Commands[4] = {};
+        double Commands[DroneMaxMotorCount] = {};
         Controller.Compute(Model.GetState(), FVector::ForwardVector, CtrlStepS, Commands);
         Model.Advance(CtrlStepS, Commands, -1000.0);
 
