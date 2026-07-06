@@ -77,13 +77,6 @@ void ADroneSimPlayerController::BeginPlay()
             StartEegRunningMode();
         }
 
-        // customer option: black background with only the drone and the widgets
-        // visible; applied one tick later so the possessed pawn is resolved first
-        if (FParse::Param(FCommandLine::Get(), TEXT("blackbg")))
-        {
-            GetWorldTimerManager().SetTimerForNextTick(this, &ADroneSimPlayerController::ApplyLaunchBlackout);
-        }
-
         // build timestamp on screen to make stale editor binaries obvious
         if (GEngine != nullptr)
         {
@@ -272,14 +265,6 @@ void ADroneSimPlayerController::ToggleEnvironmentBlackout()
 
     const int32 NumHidden = EnvironmentBlackout.Apply(*GetWorld(), GetPawn());
     FScenarioLog::Info(FString::Printf(TEXT("Environment blackout on: %d actors hidden"), NumHidden));
-}
-
-void ADroneSimPlayerController::ApplyLaunchBlackout()
-{
-    if (!EnvironmentBlackout.IsActive())
-    {
-        ToggleEnvironmentBlackout();
-    }
 }
 
 void ADroneSimPlayerController::TogglePhysicsSettings()

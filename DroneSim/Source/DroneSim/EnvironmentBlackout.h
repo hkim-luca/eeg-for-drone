@@ -9,8 +9,8 @@ class UWorld;
 
 /**
  *  Hides every scenery actor in the level so the viewport shows only the drone
- *  and the UMG overlays on a black background. Customer-facing option: enabled
- *  from launch with -blackbg or toggled with the B key at runtime.
+ *  and the UMG overlays on a black background. Customer-facing option, toggled
+ *  with the B key at runtime.
  *
  *  Kept visible: the player pawn (with anything attached to it) and all light
  *  actors, so the drone stays lit - hiding a light actor switches the light

@@ -125,12 +125,8 @@ class ADroneSimPlayerController : public APlayerController
     void TogglePhysicsSettings();
 
     /** Hides or restores the scenery so only the drone and the widgets render on a
-     *  black background (B key; started active with the -blackbg launch option) */
+     *  black background (B key) */
     void ToggleEnvironmentBlackout();
-
-    /** Applies the -blackbg launch option one tick after BeginPlay, once the
-     *  possessed pawn is resolved so it is kept visible */
-    void ApplyLaunchBlackout();
 
     /** Hides the settings panel and returns input to the game */
     UFUNCTION()
