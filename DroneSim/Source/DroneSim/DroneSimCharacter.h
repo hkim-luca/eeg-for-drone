@@ -1,9 +1,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DroneSimCharacter.generated.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+
+#include "DroneSimCharacter.generated.h"
 
 class USkeletalMesh;
 class USpringArmComponent;
