@@ -69,6 +69,11 @@ class UDronePhysicsSettingsWidget : public UUserWidget
     UFUNCTION()
     void HandlePresetSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
 
+    /** Light-on-dark text for the preset combo (closed display and dropdown rows);
+     *  the combo's default item text is black and unreadable on this panel */
+    UFUNCTION()
+    UWidget *HandleGeneratePresetItem(FString Item);
+
     UFUNCTION()
     void HandleSave();
 

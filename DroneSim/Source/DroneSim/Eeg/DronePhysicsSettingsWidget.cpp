@@ -152,31 +152,46 @@ void UDronePhysicsSettingsWidget::BuildLayout()
 
     AddPresetRow(*Header);
 
-    // body: one column per parameter group, sharing the full width evenly
-    // (SETTLE is only 2 rows, so it rides in the CONTROL column)
-    UHorizontalBox *Columns = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-    UVerticalBoxSlot *BodySlot = Root->AddChildToVerticalBox(Columns);
-    BodySlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    // body: a 2x3 grid of parameter groups so the height is used as generously as
+    // the width - AIRFRAME/MOTOR/ENVIRONMENT across the top, CONTROL/SETTLE below
+    UHorizontalBox *GridRows[2];
+    for (UHorizontalBox *&GridRow : GridRows)
+    {
+        GridRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+        UVerticalBoxSlot *RowSlot = Root->AddChildToVerticalBox(GridRow);
+        RowSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        RowSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 16.0f));
+    }
+
+    const auto AddColumn = [this](UHorizontalBox &GridRow) -> UVerticalBox * {
+        UVerticalBox *NewColumn = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+        UHorizontalBoxSlot *ColumnSlot = GridRow.AddChildToHorizontalBox(NewColumn);
+        ColumnSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        ColumnSlot->SetPadding(FMargin(0.0f, 0.0f, 40.0f, 0.0f));
+        return NewColumn;
+    };
 
     SpinBoxes.Reset();
     UVerticalBox *CurrentColumn = nullptr;
+    int32 BottomRowColumns = 0;
     for (int32 RowIndex = 0; RowIndex < ParameterRowCount; ++RowIndex)
     {
         const FParameterRow &Row = ParameterRows[RowIndex];
-        const bool bStartsColumn =
-            Row.Section != nullptr && (CurrentColumn == nullptr || FCString::Strcmp(Row.Section, TEXT("SETTLE")) != 0);
-        if (bStartsColumn)
-        {
-            CurrentColumn = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-            UHorizontalBoxSlot *ColumnSlot = Columns->AddChildToHorizontalBox(CurrentColumn);
-            ColumnSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-            ColumnSlot->SetPadding(FMargin(0.0f, 0.0f, 32.0f, 0.0f));
-        }
         if (Row.Section != nullptr)
         {
+            const bool bBottomRow = FCString::Strcmp(Row.Section, TEXT("CONTROL")) == 0 ||
+                                    FCString::Strcmp(Row.Section, TEXT("SETTLE")) == 0;
+            CurrentColumn = AddColumn(*GridRows[bBottomRow ? 1 : 0]);
+            BottomRowColumns += bBottomRow ? 1 : 0;
             AddSectionHeader(*CurrentColumn, Row.Section);
         }
         AddParameterRow(*CurrentColumn, RowIndex);
+    }
+
+    // pad the bottom row with empty cells so its columns line up with the top row's
+    for (int32 Filler = BottomRowColumns; Filler < 3; ++Filler)
+    {
+        AddColumn(*GridRows[1]);
     }
 
     // footer: actions gathered bottom-right
@@ -209,6 +224,7 @@ void UDronePhysicsSettingsWidget::AddPresetRow(UHorizontalBox &Header)
         PresetCombo->AddOption(Preset.Name);
     }
     PresetCombo->OnSelectionChanged.AddDynamic(this, &UDronePhysicsSettingsWidget::HandlePresetSelected);
+    PresetCombo->OnGenerateWidgetEvent.BindDynamic(this, &UDronePhysicsSettingsWidget::HandleGeneratePresetItem);
 
     USizeBox *ComboSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
     ComboSize->SetWidthOverride(280.0f);
@@ -308,6 +324,15 @@ void UDronePhysicsSettingsWidget::HandleValueChanged(float InValue)
         PresetCombo->ClearSelection();
     }
     OnSettingsChanged.Broadcast();
+}
+
+auto UDronePhysicsSettingsWidget::HandleGeneratePresetItem(FString Item) -> UWidget *
+{
+    UTextBlock *Text = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+    Text->SetText(FText::FromString(Item));
+    Text->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 12));
+    Text->SetColorAndOpacity(FSlateColor(FLinearColor(0.9f, 0.92f, 0.9f)));
+    return Text;
 }
 
 void UDronePhysicsSettingsWidget::HandlePresetSelected(FString SelectedItem, ESelectInfo::Type SelectionType)
