@@ -77,6 +77,13 @@ void ADroneSimPlayerController::BeginPlay()
             StartEegRunningMode();
         }
 
+        // customer option: black background with only the drone and the widgets
+        // visible; applied one tick later so the possessed pawn is resolved first
+        if (FParse::Param(FCommandLine::Get(), TEXT("blackbg")))
+        {
+            GetWorldTimerManager().SetTimerForNextTick(this, &ADroneSimPlayerController::ApplyLaunchBlackout);
+        }
+
         // build timestamp on screen to make stale editor binaries obvious
         if (GEngine != nullptr)
         {
@@ -230,6 +237,9 @@ void ADroneSimPlayerController::SetupInputComponent()
         // physics settings panel toggle; a legacy key binding so no IMC asset is needed
         InputComponent->BindKey(EKeys::P, IE_Pressed, this, &ADroneSimPlayerController::TogglePhysicsSettings);
 
+        // black-background option toggle (same legacy binding pattern as the P key)
+        InputComponent->BindKey(EKeys::B, IE_Pressed, this, &ADroneSimPlayerController::ToggleEnvironmentBlackout);
+
         // Add Input Mapping Contexts
         if (UEnhancedInputLocalPlayerSubsystem *Subsystem =
                 ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
@@ -248,6 +258,27 @@ void ADroneSimPlayerController::SetupInputComponent()
                 }
             }
         }
+    }
+}
+
+void ADroneSimPlayerController::ToggleEnvironmentBlackout()
+{
+    if (EnvironmentBlackout.IsActive())
+    {
+        EnvironmentBlackout.Restore();
+        FScenarioLog::Info(TEXT("Environment blackout off: scenery restored"));
+        return;
+    }
+
+    const int32 NumHidden = EnvironmentBlackout.Apply(*GetWorld(), GetPawn());
+    FScenarioLog::Info(FString::Printf(TEXT("Environment blackout on: %d actors hidden"), NumHidden));
+}
+
+void ADroneSimPlayerController::ApplyLaunchBlackout()
+{
+    if (!EnvironmentBlackout.IsActive())
+    {
+        ToggleEnvironmentBlackout();
     }
 }
 

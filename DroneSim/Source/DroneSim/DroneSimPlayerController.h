@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EnvironmentBlackout.h"
 #include "GameFramework/PlayerController.h"
 #include "Scenario/ScenarioConfig.h"
 
@@ -123,6 +124,14 @@ class ADroneSimPlayerController : public APlayerController
     /** Shows or hides the drone physics settings panel (P key) */
     void TogglePhysicsSettings();
 
+    /** Hides or restores the scenery so only the drone and the widgets render on a
+     *  black background (B key; started active with the -blackbg launch option) */
+    void ToggleEnvironmentBlackout();
+
+    /** Applies the -blackbg launch option one tick after BeginPlay, once the
+     *  possessed pawn is resolved so it is kept visible */
+    void ApplyLaunchBlackout();
+
     /** Hides the settings panel and returns input to the game */
     UFUNCTION()
     void ClosePhysicsSettings();
@@ -138,6 +147,9 @@ class ADroneSimPlayerController : public APlayerController
 
     /** Reloads the level to show the initial screen again */
     void ReturnToInitialScreen();
+
+    /** Scenery hiding state for the black-background option */
+    FEnvironmentBlackout EnvironmentBlackout;
 
     /** Scenario loaded by the Recording button */
     FLoadedScenario LoadedScenario;
