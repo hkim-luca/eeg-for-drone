@@ -9,8 +9,8 @@
 #include "Components/ComboBoxString.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
-#include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
+#include "Components/Spacer.h"
 #include "Components/SpinBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -126,66 +126,81 @@ void UDronePhysicsSettingsWidget::BuildLayout()
     UCanvasPanel *Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
     WidgetTree->RootWidget = Canvas;
 
+    // full-screen editor: the panel stretches to every viewport edge and the sections
+    // spread out into side-by-side columns instead of one scrolling list
     UBorder *Panel = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
     Panel->SetBrushColor(PanelBackground);
-    Panel->SetPadding(FMargin(14.0f));
+    Panel->SetPadding(FMargin(48.0f, 32.0f));
     UCanvasPanelSlot *PanelSlot = Canvas->AddChildToCanvas(Panel);
-    PanelSlot->SetAutoSize(true);
-    PanelSlot->SetAnchors(FAnchors(0.0f, 0.5f));
-    PanelSlot->SetAlignment(FVector2D(0.0, 0.5));
-    PanelSlot->SetPosition(FVector2D(40.0, 0.0));
+    PanelSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+    PanelSlot->SetOffsets(FMargin(0.0f));
 
-    UVerticalBox *Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-    Panel->SetContent(Column);
+    UVerticalBox *Root = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+    Panel->SetContent(Root);
+
+    // header bar: title on the left, airframe preset selector on the right
+    UHorizontalBox *Header = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+    Root->AddChildToVerticalBox(Header)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 20.0f));
 
     UTextBlock *Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
     Title->SetText(FText::FromString(TEXT("DRONE PHYSICS")));
-    Title->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 14));
+    Title->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 22));
     Title->SetColorAndOpacity(FSlateColor(TitleColor));
-    Column->AddChildToVerticalBox(Title)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+    UHorizontalBoxSlot *TitleSlot = Header->AddChildToHorizontalBox(Title);
+    TitleSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    TitleSlot->SetVerticalAlignment(VAlign_Center);
 
-    AddPresetRow(*Column);
+    AddPresetRow(*Header);
 
-    USizeBox *ScrollLimit = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-    ScrollLimit->SetMaxDesiredHeight(620.0f);
-    Column->AddChildToVerticalBox(ScrollLimit);
-
-    UScrollBox *Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
-    ScrollLimit->SetContent(Scroll);
-
-    UVerticalBox *List = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-    Scroll->AddChild(List);
+    // body: one column per parameter group, sharing the full width evenly
+    // (SETTLE is only 2 rows, so it rides in the CONTROL column)
+    UHorizontalBox *Columns = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+    UVerticalBoxSlot *BodySlot = Root->AddChildToVerticalBox(Columns);
+    BodySlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 
     SpinBoxes.Reset();
+    UVerticalBox *CurrentColumn = nullptr;
     for (int32 RowIndex = 0; RowIndex < ParameterRowCount; ++RowIndex)
     {
-        if (ParameterRows[RowIndex].Section != nullptr)
+        const FParameterRow &Row = ParameterRows[RowIndex];
+        const bool bStartsColumn =
+            Row.Section != nullptr && (CurrentColumn == nullptr || FCString::Strcmp(Row.Section, TEXT("SETTLE")) != 0);
+        if (bStartsColumn)
         {
-            AddSectionHeader(*List, ParameterRows[RowIndex].Section);
+            CurrentColumn = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+            UHorizontalBoxSlot *ColumnSlot = Columns->AddChildToHorizontalBox(CurrentColumn);
+            ColumnSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            ColumnSlot->SetPadding(FMargin(0.0f, 0.0f, 32.0f, 0.0f));
         }
-        AddParameterRow(*List, RowIndex);
+        if (Row.Section != nullptr)
+        {
+            AddSectionHeader(*CurrentColumn, Row.Section);
+        }
+        AddParameterRow(*CurrentColumn, RowIndex);
     }
 
+    // footer: actions gathered bottom-right
     UHorizontalBox *ButtonBar = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-    Column->AddChildToVerticalBox(ButtonBar)->SetPadding(FMargin(0.0f, 10.0f, 0.0f, 0.0f));
+    Root->AddChildToVerticalBox(ButtonBar)->SetPadding(FMargin(0.0f, 20.0f, 0.0f, 0.0f));
+
+    USpacer *ButtonSpacer = WidgetTree->ConstructWidget<USpacer>(USpacer::StaticClass());
+    UHorizontalBoxSlot *SpacerSlot = ButtonBar->AddChildToHorizontalBox(ButtonSpacer);
+    SpacerSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 
     AddButton(*ButtonBar, TEXT("SAVE"))->OnClicked.AddDynamic(this, &UDronePhysicsSettingsWidget::HandleSave);
     AddButton(*ButtonBar, TEXT("DEFAULTS"))->OnClicked.AddDynamic(this, &UDronePhysicsSettingsWidget::HandleReset);
     AddButton(*ButtonBar, TEXT("CLOSE"))->OnClicked.AddDynamic(this, &UDronePhysicsSettingsWidget::HandleClose);
 }
 
-void UDronePhysicsSettingsWidget::AddPresetRow(UVerticalBox &Column)
+void UDronePhysicsSettingsWidget::AddPresetRow(UHorizontalBox &Header)
 {
-    UHorizontalBox *Line = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-    Column.AddChildToVerticalBox(Line)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
-
     UTextBlock *Label = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
     Label->SetText(FText::FromString(TEXT("PRESET")));
-    Label->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 11));
+    Label->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 13));
     Label->SetColorAndOpacity(FSlateColor(SectionColor));
-    UHorizontalBoxSlot *LabelSlot = Line->AddChildToHorizontalBox(Label);
-    LabelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    UHorizontalBoxSlot *LabelSlot = Header.AddChildToHorizontalBox(Label);
     LabelSlot->SetVerticalAlignment(VAlign_Center);
+    LabelSlot->SetPadding(FMargin(0.0f, 0.0f, 12.0f, 0.0f));
 
     PresetCombo = WidgetTree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass());
     Presets = DronePhysicsPresets::LoadPresets();
@@ -196,18 +211,19 @@ void UDronePhysicsSettingsWidget::AddPresetRow(UVerticalBox &Column)
     PresetCombo->OnSelectionChanged.AddDynamic(this, &UDronePhysicsSettingsWidget::HandlePresetSelected);
 
     USizeBox *ComboSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-    ComboSize->SetWidthOverride(200.0f);
+    ComboSize->SetWidthOverride(280.0f);
     ComboSize->SetContent(PresetCombo);
-    Line->AddChildToHorizontalBox(ComboSize);
+    UHorizontalBoxSlot *ComboSlot = Header.AddChildToHorizontalBox(ComboSize);
+    ComboSlot->SetVerticalAlignment(VAlign_Center);
 }
 
 void UDronePhysicsSettingsWidget::AddSectionHeader(UVerticalBox &List, const FString &SectionTitle)
 {
     UTextBlock *Header = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
     Header->SetText(FText::FromString(SectionTitle));
-    Header->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 11));
+    Header->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 14));
     Header->SetColorAndOpacity(FSlateColor(SectionColor));
-    List.AddChildToVerticalBox(Header)->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 2.0f));
+    List.AddChildToVerticalBox(Header)->SetPadding(FMargin(0.0f, 10.0f, 0.0f, 6.0f));
 }
 
 void UDronePhysicsSettingsWidget::AddParameterRow(UVerticalBox &List, int32 RowIndex)
@@ -215,19 +231,19 @@ void UDronePhysicsSettingsWidget::AddParameterRow(UVerticalBox &List, int32 RowI
     const FParameterRow &Row = ParameterRows[RowIndex];
 
     UHorizontalBox *Line = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-    List.AddChildToVerticalBox(Line)->SetPadding(FMargin(0.0f, 1.0f));
+    List.AddChildToVerticalBox(Line)->SetPadding(FMargin(0.0f, 3.0f));
 
     UTextBlock *Label = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
     Label->SetText(FText::FromString(Row.Label));
-    Label->SetFont(FCoreStyle::GetDefaultFontStyle("Regular", 10));
+    Label->SetFont(FCoreStyle::GetDefaultFontStyle("Regular", 11));
     Label->SetColorAndOpacity(FSlateColor(LabelColor));
     UHorizontalBoxSlot *LabelSlot = Line->AddChildToHorizontalBox(Label);
     LabelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     LabelSlot->SetVerticalAlignment(VAlign_Center);
-    LabelSlot->SetPadding(FMargin(0.0f, 0.0f, 12.0f, 0.0f));
+    LabelSlot->SetPadding(FMargin(0.0f, 0.0f, 14.0f, 0.0f));
 
     USizeBox *SpinSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-    SpinSize->SetWidthOverride(150.0f);
+    SpinSize->SetWidthOverride(190.0f);
     Line->AddChildToHorizontalBox(SpinSize);
 
     USpinBox *Spin = WidgetTree->ConstructWidget<USpinBox>(USpinBox::StaticClass());
@@ -249,11 +265,11 @@ auto UDronePhysicsSettingsWidget::AddButton(UHorizontalBox &Bar, const FString &
     UButton *Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
     UTextBlock *Text = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
     Text->SetText(FText::FromString(Caption));
-    Text->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 10));
+    Text->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 12));
     Text->SetColorAndOpacity(FSlateColor(FLinearColor::Black));
     Button->AddChild(Text);
     UHorizontalBoxSlot *ButtonSlot = Bar.AddChildToHorizontalBox(Button);
-    ButtonSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+    ButtonSlot->SetPadding(FMargin(12.0f, 0.0f, 0.0f, 0.0f));
     return Button;
 }
 

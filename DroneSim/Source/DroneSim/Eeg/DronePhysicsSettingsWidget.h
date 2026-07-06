@@ -46,11 +46,11 @@ class UDronePhysicsSettingsWidget : public UUserWidget
     auto NativeOnKeyDown(const FGeometry &InGeometry, const FKeyEvent &InKeyEvent) -> FReply override;
 
   private:
-    /** Builds the panel hierarchy: title, preset selector, parameter rows, buttons */
+    /** Builds the full-screen hierarchy: header bar, per-group columns, button bar */
     void BuildLayout();
 
-    /** Adds the weight-class preset selector row above the parameter list */
-    void AddPresetRow(UVerticalBox &Column);
+    /** Adds the airframe preset selector to the right side of the header bar */
+    void AddPresetRow(class UHorizontalBox &Header);
 
     /** Adds an amber section caption to the list */
     void AddSectionHeader(UVerticalBox &List, const FString &Title);
