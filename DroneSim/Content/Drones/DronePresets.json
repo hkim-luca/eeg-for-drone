@@ -1,17 +1,35 @@
 {
-  "comment": "드론 기체 프리셋. 배포 후에도 이 파일만 수정하면 설정 UI의 PRESET 목록에 반영된다. 키는 proto PhysicsSettings 필드명과 동일(SI 단위); 생략한 키는 STANDARD 1.2 kg 기본값을 쓴다.",
+  "comment": "드론 기체 프리셋. 배포 후에도 이 파일만 수정하면 설정 UI의 PRESET 목록에 반영된다. models = 비행 가능한 기체 모델(캐릭터 메시 + 로터 수); 각 preset은 반드시 model을 이름으로 참조한다. 파라미터 키는 proto PhysicsSettings 필드명과 동일(SI 단위); 생략한 키는 STANDARD 1.2 kg 기본값. kT/kQ는 UIUC 프로펠러 풍동 실측(CT/CP) 기반. 헥사/옥토 메시는 전용 에셋 임포트 전까지 쿼드 메시를 임시 사용 - mesh 경로만 바꾸면 반영된다.",
+  "models": [
+    {
+      "name": "FLYING DRONE QUAD",
+      "motor_count": 4,
+      "mesh": "/Game/Characters/Drone/Flying_drone_/SkeletalMeshes/Flying_drone_.Flying_drone_"
+    },
+    {
+      "name": "FLYING DRONE HEXA",
+      "motor_count": 6,
+      "mesh": "/Game/Characters/Drone/Flying_drone_/SkeletalMeshes/Flying_drone_.Flying_drone_"
+    },
+    {
+      "name": "FLYING DRONE OCTO",
+      "motor_count": 8,
+      "mesh": "/Game/Characters/Drone/Flying_drone_/SkeletalMeshes/Flying_drone_.Flying_drone_"
+    }
+  ],
   "presets": [
     {
       "name": "MICRO 250 g",
+      "model": "FLYING DRONE QUAD",
       "mass_kg": 0.249,
       "arm_length_m": 0.09,
       "inertia_xx": 0.00025,
       "inertia_yy": 0.00025,
       "inertia_zz": 0.0004,
       "motor_time_constant_s": 0.02,
-      "thrust_coefficient": 1.5e-7,
-      "torque_coefficient": 2.4e-9,
-      "motor_max_rad_s": 3500,
+      "thrust_coefficient": 7.04e-7,
+      "torque_coefficient": 5.88e-9,
+      "motor_max_rad_s": 1600,
       "rotor_inertia": 2e-6,
       "rotor_radius_m": 0.06,
       "drag_linear": 0.08,
@@ -21,15 +39,16 @@
     },
     {
       "name": "FPV RACER 600 g",
+      "model": "FLYING DRONE QUAD",
       "mass_kg": 0.6,
       "arm_length_m": 0.12,
       "inertia_xx": 0.0025,
       "inertia_yy": 0.0025,
       "inertia_zz": 0.0045,
       "motor_time_constant_s": 0.015,
-      "thrust_coefficient": 4.5e-7,
-      "torque_coefficient": 7e-9,
-      "motor_max_rad_s": 4000,
+      "thrust_coefficient": 1.01e-6,
+      "torque_coefficient": 1.5e-8,
+      "motor_max_rad_s": 2700,
       "rotor_inertia": 1e-5,
       "rotor_radius_m": 0.0635,
       "drag_linear": 0.15,
@@ -38,19 +57,21 @@
       "max_tilt_deg": 40
     },
     {
-      "name": "STANDARD 1.2 kg"
+      "name": "STANDARD 1.2 kg",
+      "model": "FLYING DRONE QUAD"
     },
     {
       "name": "CINEMA 2.5 kg",
+      "model": "FLYING DRONE QUAD",
       "mass_kg": 2.5,
       "arm_length_m": 0.25,
       "inertia_xx": 0.035,
       "inertia_yy": 0.035,
       "inertia_zz": 0.06,
       "motor_time_constant_s": 0.08,
-      "thrust_coefficient": 7.6e-6,
-      "torque_coefficient": 1.5e-7,
-      "motor_max_rad_s": 1500,
+      "thrust_coefficient": 3.81e-5,
+      "torque_coefficient": 7.11e-7,
+      "motor_max_rad_s": 670,
       "rotor_inertia": 0.00015,
       "rotor_radius_m": 0.17,
       "drag_linear": 0.4,
@@ -62,15 +83,16 @@
     },
     {
       "name": "INDUSTRIAL 6.5 kg",
+      "model": "FLYING DRONE HEXA",
       "mass_kg": 6.5,
       "arm_length_m": 0.45,
       "inertia_xx": 0.35,
       "inertia_yy": 0.35,
       "inertia_zz": 0.6,
       "motor_time_constant_s": 0.12,
-      "thrust_coefficient": 6.4e-5,
-      "torque_coefficient": 1.6e-6,
-      "motor_max_rad_s": 850,
+      "thrust_coefficient": 2.34e-4,
+      "torque_coefficient": 6.99e-6,
+      "motor_max_rad_s": 365,
       "rotor_inertia": 0.0008,
       "rotor_radius_m": 0.27,
       "drag_linear": 0.8,
@@ -82,6 +104,7 @@
     },
     {
       "name": "HEAVY LIFT 25 kg",
+      "model": "FLYING DRONE OCTO",
       "mass_kg": 25,
       "arm_length_m": 0.9,
       "inertia_xx": 4,
@@ -90,7 +113,7 @@
       "motor_time_constant_s": 0.18,
       "thrust_coefficient": 6.8e-4,
       "torque_coefficient": 2e-5,
-      "motor_max_rad_s": 520,
+      "motor_max_rad_s": 370,
       "rotor_inertia": 0.006,
       "rotor_radius_m": 0.5,
       "drag_linear": 2,

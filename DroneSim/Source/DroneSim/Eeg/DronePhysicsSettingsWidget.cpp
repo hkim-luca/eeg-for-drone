@@ -63,7 +63,7 @@ const FParameterRow ParameterRows[] = {
     {nullptr,          TEXT("VEL I GAIN"),             &FDronePhysicsSettings::VelIGain,            nullptr, nullptr, 0.0, 10.0, 2},
     {nullptr,          TEXT("ATT P GAIN"),             &FDronePhysicsSettings::AttPGain,            nullptr, nullptr, 0.5, 50.0, 1},
     {nullptr,          TEXT("RATE P GAIN"),            &FDronePhysicsSettings::RatePGain,           nullptr, nullptr, 1.0, 200.0, 1},
-    {nullptr,          TEXT("RATE D GAIN"),            &FDronePhysicsSettings::RateDGain,           nullptr, nullptr, 0.0, 10.0, 2},
+    {nullptr,          TEXT("RATE D GAIN"),            &FDronePhysicsSettings::RateDGain,           nullptr, nullptr, 0.0, 5.0, 2},
     {nullptr,          TEXT("SUBSTEP [Hz]"),           nullptr, nullptr, &FDronePhysicsSettings::SubstepHz, 250.0, 4000.0, 0},
     {TEXT("SETTLE"),   TEXT("SPEED THRESH [cm/s]"),    nullptr, &FDronePhysicsSettings::SettleSpeedThreshold, nullptr, 0.1, 100.0, 1},
     {nullptr,          TEXT("TILT THRESH [deg]"),      nullptr, &FDronePhysicsSettings::SettleTiltThreshold, nullptr, 0.01, 5.0, 2},

@@ -22,10 +22,10 @@ class FDroneFlightController
     void SetSettings(const FDronePhysicsSettings &InSettings);
 
     /** One control step. MoveDirection is a world-frame XY unit vector (zero = hold
-     *  position); OutMotorCommands receives 4 target rotor speeds in rad/s, ordered
-     *  like FDroneFlightModel (FR, FL, BL, BR). */
+     *  position); OutMotorCommands receives MotorCount target rotor speeds in rad/s
+     *  ordered like FDroneFlightModel::MotorLayout; unused entries are zeroed. */
     void Compute(const FDroneFlightState &State, const FVector &MoveDirection, double DeltaTimeS,
-                 double OutMotorCommands[4]);
+                 double OutMotorCommands[DroneMaxMotorCount]);
 
   private:
     FDronePhysicsSettings Settings;
@@ -41,4 +41,9 @@ class FDroneFlightController
 
     /** Body rate of the previous step, for the rate-loop damping term */
     FVector PreviousRate = FVector::ZeroVector;
+
+    /** Low-pass filtered measured angular acceleration; the raw one-step finite
+     *  difference feeds its own output back with one step of delay and self-amplifies
+     *  at damping gains above ~1, so the D term must act on this instead */
+    FVector FilteredAngularAccel = FVector::ZeroVector;
 };

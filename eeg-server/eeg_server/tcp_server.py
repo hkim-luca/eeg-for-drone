@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from typing import Final
 
 from . import config
@@ -56,8 +57,11 @@ class EegTcpServer:
                 if kind == "eeg":
                     await self._handle_frame(message.eeg, writer)
                 elif kind == "physics":
+                    # a NaN/Infinity double would make the /api/state JSON unparseable
+                    # in the browser and freeze the dashboard; drop non-finite values
                     settings = {
                         field.name: value for field, value in message.physics.ListFields()
+                        if not isinstance(value, float) or math.isfinite(value)
                     }
                     self._state.on_physics_settings(settings)
                     _LOGGER.info("physics settings updated: %d fields", len(settings))

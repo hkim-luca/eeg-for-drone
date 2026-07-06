@@ -52,6 +52,7 @@ const PHYSICS_FIELDS = {
   inertia_xx:            ["기체", "관성 Ixx", "kg·m²", 5],
   inertia_yy:            ["기체", "관성 Iyy", "kg·m²", 5],
   inertia_zz:            ["기체", "관성 Izz", "kg·m²", 5],
+  motor_count:           ["모터", "모터 수", "", 0],
   motor_time_constant_s: ["모터", "시정수", "s", 3],
   thrust_coefficient:    ["모터", "추력 계수 kT", "", 9],
   torque_coefficient:    ["모터", "토크 계수 kQ", "", 10],

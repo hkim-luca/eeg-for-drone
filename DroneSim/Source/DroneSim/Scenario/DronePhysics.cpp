@@ -1,9 +1,11 @@
 #include "DronePhysics.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "DroneSimCharacter.h"
 #include "Engine/HitResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "ScenarioLog.h"
 
 namespace
 {
@@ -23,6 +25,9 @@ void FDronePhysics::Begin(ACharacter &InCharacter, float MoveSpeed, const FDrone
     {
         Settings.MaxSpeedMS = MoveSpeed / CmPerMeter;
     }
+    // the JSON preset file and the config ini bypass the UI clamps; a zero or NaN
+    // parameter must never reach the integrator
+    Settings.Sanitize();
 
     Character = &InCharacter;
 
@@ -32,6 +37,12 @@ void FDronePhysics::Begin(ACharacter &InCharacter, float MoveSpeed, const FDrone
     Movement->SetMovementMode(MOVE_None);
     Movement->Velocity = FVector::ZeroVector;
 
+    // show the airframe matching the rotor layout before the rest pose is captured
+    if (ADroneSimCharacter *DroneCharacter = Cast<ADroneSimCharacter>(&InCharacter))
+    {
+        DroneCharacter->ApplyAirframeMesh(Settings.AirframeMeshPath);
+    }
+
     if (const USkeletalMeshComponent *Mesh = InCharacter.GetMesh())
     {
         MeshBaseRotation = Mesh->GetRelativeRotation().Quaternion();
@@ -40,7 +51,8 @@ void FDronePhysics::Begin(ACharacter &InCharacter, float MoveSpeed, const FDrone
     HoldYawRad = FMath::DegreesToRadians(InCharacter.GetActorRotation().Yaw);
     Model.SetSettings(Settings);
     Model.Reset(InCharacter.GetActorLocation() / CmPerMeter, HoldYawRad);
-    Controller.Reset(Settings, Model.GetState().Position.Z + Settings.TakeoffAltitudeM, HoldYawRad);
+    HoldAltitudeM = Model.GetState().Position.Z + Settings.TakeoffAltitudeM;
+    Controller.Reset(Settings, HoldAltitudeM, HoldYawRad);
 
     MoveDirection = FVector::ZeroVector;
     CurrentTilt = FRotator::ZeroRotator;
@@ -59,8 +71,15 @@ void FDronePhysics::UpdateSettings(const FDronePhysicsSettings &InSettings)
     const double SpeedOverride = Settings.MaxSpeedMS;
     Settings = InSettings;
     Settings.MaxSpeedMS = SpeedOverride;
+    Settings.Sanitize();
     Model.SetSettings(Settings);
     Controller.SetSettings(Settings);
+
+    // a live preset switch may change the rotor layout; swap the body to match
+    if (ADroneSimCharacter *DroneCharacter = Cast<ADroneSimCharacter>(Character.Get()))
+    {
+        DroneCharacter->ApplyAirframeMesh(Settings.AirframeMeshPath);
+    }
 }
 
 void FDronePhysics::Tick(float DeltaTime)
@@ -77,13 +96,27 @@ void FDronePhysics::Tick(float DeltaTime)
 
     while (TimeAccumulator >= StepS)
     {
-        double MotorCommands[4] = {};
+        double MotorCommands[DroneMaxMotorCount] = {};
         Controller.Compute(Model.GetState(), MoveDirection, StepS, MotorCommands);
         Model.Advance(StepS, MotorCommands, GroundZM);
         TimeAccumulator -= StepS;
     }
 
-    ApplyToActor(*Drone);
+    // divergence guard: a non-finite state must never reach SetActorLocation (UE would
+    // ensure/crash) and cannot heal itself; restart the simulation at the actor's pose
+    const FDroneFlightState &State = Model.GetState();
+    if (!State.Position.ContainsNaN() && !State.Velocity.ContainsNaN() && !State.Attitude.ContainsNaN() &&
+        !State.AngularVelocity.ContainsNaN())
+    {
+        ApplyToActor(*Drone);
+    }
+    else
+    {
+        FScenarioLog::Error(TEXT("Drone physics diverged (non-finite state); resetting at the current pose"));
+        Model.Reset(Drone->GetActorLocation() / CmPerMeter, HoldYawRad);
+        Controller.Reset(Settings, HoldAltitudeM, HoldYawRad);
+        CurrentTilt = FRotator::ZeroRotator;
+    }
 }
 
 void FDronePhysics::ApplyToActor(ACharacter &Drone)

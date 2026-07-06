@@ -38,21 +38,36 @@ struct FDronePhysicsSettings
 
     // --- Motor / rotor (4x, X-quad layout) ---
 
+    /** Rotor count and layout: 4 = X-quad, 6 = hexa-X, 8 = flat octo-X (Sanitize snaps
+     *  to the nearest supported count; only even, evenly-spaced layouts keep the mixer
+     *  algebra exact). Set by the airframe model a preset references, not edited
+     *  directly - the body mesh and the layout must stay in step. */
+    UPROPERTY(VisibleAnywhere, Category = "Motor", meta = (ClampMin = "4", ClampMax = "8"))
+    int32 MotorCount = 4;
+
+    /** Character skeletal mesh shown for this airframe model (asset path, e.g.
+     *  /Game/Characters/.../Flying_drone_.Flying_drone_); resolved from the model a
+     *  preset references. Empty keeps the Character Blueprint's own body. */
+    UPROPERTY(VisibleAnywhere, Category = "Airframe")
+    FString AirframeMeshPath;
+
     /** First-order motor lag; the rotor reaches a new command in roughly 3x this time */
     UPROPERTY(EditAnywhere, Category = "Motor", meta = (ClampMin = "0.005", ClampMax = "0.5", ForceUnits = "s"))
     double MotorTimeConstantS = 0.05;
 
-    /** Rotor thrust per squared angular speed at sea-level density, T = kT * w^2 [N/(rad/s)^2] */
+    /** Rotor thrust per squared angular speed at sea-level density, T = kT * w^2 [N/(rad/s)^2].
+     *  Default matches the UIUC static wind-tunnel data of the APC SF 9x4.7/10x4.7 props. */
     UPROPERTY(EditAnywhere, Category = "Motor", meta = (ClampMin = "0.0000001", ClampMax = "0.001"))
-    double ThrustCoefficient = 1.2e-6;
+    double ThrustCoefficient = 1.21e-5;
 
-    /** Rotor reaction torque per squared angular speed, Q = kQ * w^2 [N*m/(rad/s)^2] */
+    /** Rotor reaction torque per squared angular speed, Q = kQ * w^2 [N*m/(rad/s)^2].
+     *  Default matches the UIUC static wind-tunnel data of the APC SF 9x4.7/10x4.7 props. */
     UPROPERTY(EditAnywhere, Category = "Motor", meta = (ClampMin = "0.000000001", ClampMax = "0.0001"))
-    double TorqueCoefficient = 1.9e-8;
+    double TorqueCoefficient = 1.89e-7;
 
-    /** Maximum rotor angular speed the motor can hold */
+    /** Maximum rotor angular speed the motor can hold (hover sits at ~63%: T/W ~2.5) */
     UPROPERTY(EditAnywhere, Category = "Motor", meta = (ClampMin = "100.0", ClampMax = "10000.0"))
-    double MotorMaxRadS = 2100.0;
+    double MotorMaxRadS = 780.0;
 
     /** Spin inertia of one rotor, source of the gyroscopic torque [kg*m^2] */
     UPROPERTY(EditAnywhere, Category = "Motor", meta = (ClampMin = "0.0", ClampMax = "0.01"))
@@ -131,8 +146,10 @@ struct FDronePhysicsSettings
     UPROPERTY(EditAnywhere, Category = "Control", meta = (ClampMin = "1.0", ClampMax = "200.0"))
     double RatePGain = 20.0;
 
-    /** Rate-loop damping on the measured angular acceleration */
-    UPROPERTY(EditAnywhere, Category = "Control", meta = (ClampMin = "0.0", ClampMax = "10.0"))
+    /** Rate-loop damping on the measured angular acceleration. Capped at 5: the D term
+     *  feeds back a one-step-delayed finite difference, and even low-passed it
+     *  self-oscillates above ~5 at the 1 kHz substep rate (red-team RateDGainStability). */
+    UPROPERTY(EditAnywhere, Category = "Control", meta = (ClampMin = "0.0", ClampMax = "5.0"))
     double RateDGain = 0.4;
 
     /** Fixed integration substep rate of the RK4 solver */
@@ -148,4 +165,66 @@ struct FDronePhysicsSettings
     /** Tilt below which the body counts as level when settling between actions */
     UPROPERTY(EditAnywhere, Category = "Settle", meta = (ClampMin = "0.01", ForceUnits = "deg"))
     float SettleTiltThreshold = 0.5f;
+
+    /** Snaps every field back to a finite value inside its UPROPERTY clamp range
+     *  (non-finite values fall back to the C++ default). The settings UI clamps its
+     *  spin boxes, but the JSON preset file and the Saved/Config ini bypass it - a
+     *  zero mass, inertia or motor time constant would divide by zero inside the
+     *  simulation, and one NaN poisons the whole state. Call before handing the
+     *  settings to the flight model. Ranges mirror the UPROPERTY metadata above. */
+    void Sanitize()
+    {
+        const FDronePhysicsSettings Defaults;
+        const auto Fix = [](double &Value, double Default, double Min, double Max) {
+            Value = FMath::Clamp(FMath::IsFinite(Value) ? Value : Default, Min, Max);
+        };
+        Fix(MassKg, Defaults.MassKg, 0.1, 30.0);
+        Fix(ArmLengthM, Defaults.ArmLengthM, 0.05, 1.0);
+        Fix(InertiaXX, Defaults.InertiaXX, 0.0001, 10.0);
+        Fix(InertiaYY, Defaults.InertiaYY, 0.0001, 10.0);
+        Fix(InertiaZZ, Defaults.InertiaZZ, 0.0001, 10.0);
+        // layouts exist for 4/6/8 only; the JSON/ini paths can carry any integer, and an
+        // odd rotor count cannot balance the reaction torque, so snap to the nearest layout
+        if (MotorCount <= 4)
+        {
+            MotorCount = 4;
+        }
+        else if (MotorCount <= 6)
+        {
+            MotorCount = 6;
+        }
+        else
+        {
+            MotorCount = 8;
+        }
+        Fix(MotorTimeConstantS, Defaults.MotorTimeConstantS, 0.005, 0.5);
+        Fix(ThrustCoefficient, Defaults.ThrustCoefficient, 1e-7, 1e-3);
+        Fix(TorqueCoefficient, Defaults.TorqueCoefficient, 1e-9, 1e-4);
+        Fix(MotorMaxRadS, Defaults.MotorMaxRadS, 100.0, 10000.0);
+        Fix(RotorInertiaKgM2, Defaults.RotorInertiaKgM2, 0.0, 0.01);
+        Fix(RotorRadiusM, Defaults.RotorRadiusM, 0.01, 1.0);
+        Fix(GravityMS2, Defaults.GravityMS2, 0.0, 30.0);
+        Fix(AirDensity, Defaults.AirDensity, 0.0, 2.0);
+        Fix(DragLinear, Defaults.DragLinear, 0.0, 10.0);
+        Fix(DragQuadratic, Defaults.DragQuadratic, 0.0, 10.0);
+        Fix(GroundEffectStrength, Defaults.GroundEffectStrength, 0.0, 1.0);
+        Fix(WindXMS, Defaults.WindXMS, -30.0, 30.0);
+        Fix(WindYMS, Defaults.WindYMS, -30.0, 30.0);
+        Fix(GustIntensityMS, Defaults.GustIntensityMS, 0.0, 15.0);
+        Fix(MaxSpeedMS, Defaults.MaxSpeedMS, 0.5, 40.0);
+        Fix(MaxClimbRateMS, Defaults.MaxClimbRateMS, 0.1, 10.0);
+        Fix(MaxTiltDeg, Defaults.MaxTiltDeg, 1.0, 45.0);
+        Fix(TakeoffAltitudeM, Defaults.TakeoffAltitudeM, 0.0, 50.0);
+        Fix(VelPGain, Defaults.VelPGain, 0.1, 20.0);
+        Fix(VelIGain, Defaults.VelIGain, 0.0, 10.0);
+        Fix(AttPGain, Defaults.AttPGain, 0.5, 50.0);
+        Fix(RatePGain, Defaults.RatePGain, 1.0, 200.0);
+        Fix(RateDGain, Defaults.RateDGain, 0.0, 5.0);
+        SubstepHz = FMath::Clamp(SubstepHz, 250, 4000);
+        SettleSpeedThreshold =
+            FMath::Clamp(FMath::IsFinite(SettleSpeedThreshold) ? SettleSpeedThreshold : Defaults.SettleSpeedThreshold,
+                         0.1f, 1000.0f);
+        SettleTiltThreshold = FMath::Clamp(
+            FMath::IsFinite(SettleTiltThreshold) ? SettleTiltThreshold : Defaults.SettleTiltThreshold, 0.01f, 45.0f);
+    }
 };

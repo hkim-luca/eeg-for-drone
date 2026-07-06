@@ -1,10 +1,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DroneSimCharacter.generated.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
-#include "DroneSimCharacter.generated.h"
 
+class USkeletalMesh;
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
@@ -19,76 +20,86 @@ DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 UCLASS(abstract)
 class ADroneSimCharacter : public ACharacter
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
-	/** Camera boom positioning the camera behind the character */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	USpringArmComponent* CameraBoom;
+    /** Camera boom positioning the camera behind the character */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+    USpringArmComponent *CameraBoom;
 
-	/** Follow camera */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	UCameraComponent* FollowCamera;
-	
-protected:
+    /** Follow camera */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+    UCameraComponent *FollowCamera;
 
-	/** Jump Input Action */
-	UPROPERTY(EditAnywhere, Category="Input")
-	UInputAction* JumpAction;
+  protected:
+    /** Jump Input Action */
+    UPROPERTY(EditAnywhere, Category = "Input")
+    UInputAction *JumpAction;
 
-	/** Move Input Action */
-	UPROPERTY(EditAnywhere, Category="Input")
-	UInputAction* MoveAction;
+    /** Move Input Action */
+    UPROPERTY(EditAnywhere, Category = "Input")
+    UInputAction *MoveAction;
 
-	/** Look Input Action */
-	UPROPERTY(EditAnywhere, Category="Input")
-	UInputAction* LookAction;
+    /** Look Input Action */
+    UPROPERTY(EditAnywhere, Category = "Input")
+    UInputAction *LookAction;
 
-	/** Mouse Look Input Action */
-	UPROPERTY(EditAnywhere, Category="Input")
-	UInputAction* MouseLookAction;
+    /** Mouse Look Input Action */
+    UPROPERTY(EditAnywhere, Category = "Input")
+    UInputAction *MouseLookAction;
 
-public:
+  public:
+    /** Constructor */
+    ADroneSimCharacter();
 
-	/** Constructor */
-	ADroneSimCharacter();	
+  protected:
+    /** Initialize input action bindings */
+    virtual void SetupPlayerInputComponent(class UInputComponent *PlayerInputComponent) override;
 
-protected:
+  protected:
+    /** Called for movement input */
+    void Move(const FInputActionValue &Value);
 
-	/** Initialize input action bindings */
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+    /** Called for looking input */
+    void Look(const FInputActionValue &Value);
 
-protected:
+  public:
+    /** Handles move inputs from either controls or UI interfaces */
+    UFUNCTION(BlueprintCallable, Category = "Input")
+    virtual void DoMove(float Right, float Forward);
 
-	/** Called for movement input */
-	void Move(const FInputActionValue& Value);
+    /** Handles look inputs from either controls or UI interfaces */
+    UFUNCTION(BlueprintCallable, Category = "Input")
+    virtual void DoLook(float Yaw, float Pitch);
 
-	/** Called for looking input */
-	void Look(const FInputActionValue& Value);
+    /** Handles jump pressed inputs from either controls or UI interfaces */
+    UFUNCTION(BlueprintCallable, Category = "Input")
+    virtual void DoJumpStart();
 
-public:
+    /** Handles jump pressed inputs from either controls or UI interfaces */
+    UFUNCTION(BlueprintCallable, Category = "Input")
+    virtual void DoJumpEnd();
 
-	/** Handles move inputs from either controls or UI interfaces */
-	UFUNCTION(BlueprintCallable, Category="Input")
-	virtual void DoMove(float Right, float Forward);
+  public:
+    /** Swaps the body to the given skeletal mesh asset (the airframe model declared
+     *  in Content/Drones/DronePresets.json); called by the drone physics when a run
+     *  starts and when the preset changes live. An empty path keeps the Blueprint's
+     *  own body; a path that fails to load keeps the body and logs once. */
+    void ApplyAirframeMesh(const FString &MeshPath);
 
-	/** Handles look inputs from either controls or UI interfaces */
-	UFUNCTION(BlueprintCallable, Category="Input")
-	virtual void DoLook(float Yaw, float Pitch);
+  protected:
+    /** Mesh paths already reported as unloadable, to log each of them only once */
+    TSet<FString> WarnedMissingAirframes;
 
-	/** Handles jump pressed inputs from either controls or UI interfaces */
-	UFUNCTION(BlueprintCallable, Category="Input")
-	virtual void DoJumpStart();
+  public:
+    /** Returns CameraBoom subobject **/
+    FORCEINLINE class USpringArmComponent *GetCameraBoom() const
+    {
+        return CameraBoom;
+    }
 
-	/** Handles jump pressed inputs from either controls or UI interfaces */
-	UFUNCTION(BlueprintCallable, Category="Input")
-	virtual void DoJumpEnd();
-
-public:
-
-	/** Returns CameraBoom subobject **/
-	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
-
-	/** Returns FollowCamera subobject **/
-	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+    /** Returns FollowCamera subobject **/
+    FORCEINLINE class UCameraComponent *GetFollowCamera() const
+    {
+        return FollowCamera;
+    }
 };
-

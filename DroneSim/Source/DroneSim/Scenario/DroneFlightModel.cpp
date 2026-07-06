@@ -1,6 +1,40 @@
 #include "DroneFlightModel.h"
 #include "HAL/PlatformTime.h"
 
+namespace
+{
+constexpr double InvSqrt2 = 0.70710678118654752;
+constexpr double Sin22_5 = 0.38268343236508978;
+constexpr double Cos22_5 = 0.92387953251128674;
+constexpr double Cos30 = 0.86602540378443865;
+} // namespace
+
+auto FDroneFlightModel::MotorLayout(int32 MotorCount) -> const FMotorGeometry *
+{
+    // X-quad: FR, FL, BL, BR at (+-1/sqrt2, +-1/sqrt2) x ArmLengthM; FR/BL spin CCW
+    static constexpr FMotorGeometry QuadX[DroneMaxMotorCount] = {{+InvSqrt2, -InvSqrt2, +1.0},
+                                                                 {-InvSqrt2, -InvSqrt2, -1.0},
+                                                                 {-InvSqrt2, +InvSqrt2, +1.0},
+                                                                 {+InvSqrt2, +InvSqrt2, -1.0},
+                                                                 {0.0, 0.0, 0.0},
+                                                                 {0.0, 0.0, 0.0},
+                                                                 {0.0, 0.0, 0.0},
+                                                                 {0.0, 0.0, 0.0}};
+
+    // hexa-X: 6 arms at 30 + 60k deg from forward, spin alternating; the even
+    // symmetric spacing keeps the mixer columns orthogonal like the quad's
+    static constexpr FMotorGeometry HexaX[DroneMaxMotorCount] = {
+        {+0.5, -Cos30, +1.0}, {+1.0, 0.0, -1.0},    {+0.5, +Cos30, +1.0}, {-0.5, +Cos30, -1.0},
+        {-1.0, 0.0, +1.0},    {-0.5, -Cos30, -1.0}, {0.0, 0.0, 0.0},      {0.0, 0.0, 0.0}};
+
+    // flat octo-X: 8 arms at 22.5 + 45k deg from forward (none on the axes)
+    static constexpr FMotorGeometry OctoX[DroneMaxMotorCount] = {
+        {+Sin22_5, -Cos22_5, +1.0}, {+Cos22_5, -Sin22_5, -1.0}, {+Cos22_5, +Sin22_5, +1.0}, {+Sin22_5, +Cos22_5, -1.0},
+        {-Sin22_5, +Cos22_5, +1.0}, {-Cos22_5, +Sin22_5, -1.0}, {-Cos22_5, -Sin22_5, +1.0}, {-Sin22_5, -Cos22_5, -1.0}};
+
+    return MotorCount >= 7 ? OctoX : (MotorCount >= 5 ? HexaX : QuadX);
+}
+
 void FDroneFlightModel::Reset(const FVector &PositionM, double YawRad)
 {
     State = FDroneFlightState();
@@ -16,7 +50,8 @@ void FDroneFlightModel::SetSettings(const FDronePhysicsSettings &InSettings)
     Settings = InSettings;
 }
 
-void FDroneFlightModel::Advance(double DeltaTimeS, const double MotorCommands[4], double GroundAltitudeM)
+void FDroneFlightModel::Advance(double DeltaTimeS, const double MotorCommands[DroneMaxMotorCount],
+                                double GroundAltitudeM)
 {
     if (DeltaTimeS <= 0.0)
     {
@@ -46,7 +81,7 @@ void FDroneFlightModel::Advance(double DeltaTimeS, const double MotorCommands[4]
     State.Attitude.Normalize();
     State.AngularVelocity += Sixth * (K1.AngularAcceleration + 2.0 * K2.AngularAcceleration +
                                       2.0 * K3.AngularAcceleration + K4.AngularAcceleration);
-    for (int32 Motor = 0; Motor < 4; ++Motor)
+    for (int32 Motor = 0; Motor < Settings.MotorCount; ++Motor)
     {
         State.MotorSpeed[Motor] += Sixth * (K1.MotorAcceleration[Motor] + 2.0 * K2.MotorAcceleration[Motor] +
                                             2.0 * K3.MotorAcceleration[Motor] + K4.MotorAcceleration[Motor]);
@@ -71,7 +106,8 @@ auto FDroneFlightModel::HoverMotorSpeed() const -> double
     {
         return 0.0;
     }
-    return FMath::Sqrt(Settings.MassKg * Settings.GravityMS2 / (4.0 * Settings.ThrustCoefficient * RhoRatio));
+    return FMath::Sqrt(Settings.MassKg * Settings.GravityMS2 /
+                       (Settings.MotorCount * Settings.ThrustCoefficient * RhoRatio));
 }
 
 auto FDroneFlightModel::GetWind() const -> FVector
@@ -79,38 +115,36 @@ auto FDroneFlightModel::GetWind() const -> FVector
     return FVector(Settings.WindXMS, Settings.WindYMS, 0.0) + Gust;
 }
 
-auto FDroneFlightModel::Derivative(const FDroneFlightState &At, const double MotorCommands[4],
+auto FDroneFlightModel::Derivative(const FDroneFlightState &At, const double MotorCommands[DroneMaxMotorCount],
                                    double GroundAltitudeM) const -> FDerivative
 {
     FDerivative Out;
     const double RhoRatio = Settings.AirDensity / SeaLevelAirDensity;
+    const FMotorGeometry *Layout = MotorLayout(Settings.MotorCount);
 
     // ground effect: thrust gain grows as the rotor plane nears the terrain
     const double Height = FMath::Max(At.Position.Z - GroundAltitudeM, 0.0);
     const double HeightRatio = Settings.RotorRadiusM / (4.0 * FMath::Max(Height, Settings.RotorRadiusM));
     const double GroundGain = 1.0 / (1.0 - Settings.GroundEffectStrength * FMath::Min(HeightRatio * HeightRatio, 0.25));
 
-    double Thrust[4];
     double TotalThrust = 0.0;
-    double YawTorque = 0.0;
+    FVector Torque = FVector::ZeroVector;
     double GyroMomentum = 0.0;
-    for (int32 Motor = 0; Motor < 4; ++Motor)
+    for (int32 Motor = 0; Motor < Settings.MotorCount; ++Motor)
     {
         const double Command = FMath::Clamp(MotorCommands[Motor], 0.0, Settings.MotorMaxRadS);
         Out.MotorAcceleration[Motor] = (Command - At.MotorSpeed[Motor]) / Settings.MotorTimeConstantS;
 
         const double SpeedSq = At.MotorSpeed[Motor] * At.MotorSpeed[Motor];
-        Thrust[Motor] = Settings.ThrustCoefficient * RhoRatio * GroundGain * SpeedSq;
-        TotalThrust += Thrust[Motor];
+        const double Thrust = Settings.ThrustCoefficient * RhoRatio * GroundGain * SpeedSq;
+        TotalThrust += Thrust;
+        // thrust moments through the per-motor lever arms of the active layout
+        Torque.X += Layout[Motor].RollArm * Settings.ArmLengthM * Thrust;
+        Torque.Y += Layout[Motor].PitchArm * Settings.ArmLengthM * Thrust;
         // rotor reaction torque acts on the body against the spin direction
-        YawTorque -= SpinDirection[Motor] * Settings.TorqueCoefficient * RhoRatio * SpeedSq;
-        GyroMomentum += SpinDirection[Motor] * At.MotorSpeed[Motor];
+        Torque.Z -= Layout[Motor].SpinDir * Settings.TorqueCoefficient * RhoRatio * SpeedSq;
+        GyroMomentum += Layout[Motor].SpinDir * At.MotorSpeed[Motor];
     }
-
-    // thrust torque from the X-quad geometry, motor order FR, FL, BL, BR at (+-L/sqrt2, +-L/sqrt2)
-    const double Lever = Settings.ArmLengthM * FMath::Sqrt(0.5);
-    FVector Torque(Lever * (Thrust[0] - Thrust[1] - Thrust[2] + Thrust[3]),
-                   Lever * (-Thrust[0] - Thrust[1] + Thrust[2] + Thrust[3]), YawTorque);
 
     // rotor gyroscopic torque: -J_r * sum(dir_i * w_i) * (W x z)
     Torque -=
@@ -146,7 +180,7 @@ auto FDroneFlightModel::AddScaled(const FDroneFlightState &Base, const FDerivati
     // intermediate RK4 stages rotate vectors with this quaternion, so keep it unit length
     Out.Attitude.Normalize();
     Out.AngularVelocity += Rate.AngularAcceleration * Scale;
-    for (int32 Motor = 0; Motor < 4; ++Motor)
+    for (int32 Motor = 0; Motor < DroneMaxMotorCount; ++Motor)
     {
         Out.MotorSpeed[Motor] = Base.MotorSpeed[Motor] + Rate.MotorAcceleration[Motor] * Scale;
     }

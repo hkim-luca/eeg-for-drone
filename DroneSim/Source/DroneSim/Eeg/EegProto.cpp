@@ -311,6 +311,7 @@ auto EncodePhysicsSettings(const FDronePhysicsSettings &Settings, const FString 
     AppendDoubleField(Inner, 21, Settings.MaxSpeedMS);
     AppendVarintField(Inner, 22, static_cast<uint64>(Settings.SubstepHz));
     AppendStringField(Inner, 23, PresetName);
+    AppendVarintField(Inner, 24, static_cast<uint64>(Settings.MotorCount));
     return WrapAsEnvelope(3, Inner); // ClientMessage.physics
 }
 

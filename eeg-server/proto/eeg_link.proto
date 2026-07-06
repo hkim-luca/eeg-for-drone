@@ -56,6 +56,7 @@ message PhysicsSettings {
   double max_speed_ms = 21;
   int32 substep_hz = 22;            // RK4 integration rate
   string preset_name = 23;          // airframe preset the values came from; CUSTOM if hand-edited
+  int32 motor_count = 24;           // rotor count of the airframe model: 4 quad, 6 hexa, 8 octo
 }
 
 // Everything DroneSim sends.

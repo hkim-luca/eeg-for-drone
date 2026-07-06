@@ -73,6 +73,10 @@ class FDronePhysics
     /** Yaw (rad) held for the whole run, captured from the actor in Begin() */
     double HoldYawRad = 0.0;
 
+    /** Hover altitude (sim meters) held by the controller, captured in Begin();
+     *  also the recovery hold point after a divergence reset */
+    double HoldAltitudeM = 0.0;
+
     /** Frame time not yet consumed by whole fixed substeps */
     double TimeAccumulator = 0.0;
 
