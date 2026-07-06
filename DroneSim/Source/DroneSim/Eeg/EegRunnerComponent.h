@@ -65,8 +65,9 @@ class UEegRunnerComponent : public UActorComponent
     /** Number of samples kept in the metrics history (~30 s at the ~10 Hz action-result rate) */
     static constexpr int32 MetricsHistoryCapacity = 300;
 
-    /** Re-reads UDronePhysicsConfig into the active flight physics (settings UI live edit) */
-    void NotifySettingsChanged();
+    /** Settings UI SAVE: re-reads UDronePhysicsConfig into the active flight physics
+     *  and sends the saved setup to the server for the dashboard */
+    void NotifySettingsSaved();
 
     /** Current visual body tilt (banking roll, nose pitch) applied by the drone physics;
      *  the pawn's own actor rotation never rolls or pitches, only this cosmetic mesh tilt */
@@ -89,6 +90,9 @@ class UEegRunnerComponent : public UActorComponent
   private:
     /** Handles one server payload: adopts the inferred action and queues its ack */
     void HandleServerMessage(TConstArrayView<uint8> Payload);
+
+    /** Sends the current physics settings to the server for the dashboard */
+    void SendPhysicsSettings();
 
     /** Broadcasts the action label when it changes */
     void PublishActionLabel(const FString &Label);

@@ -18,11 +18,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPhysicsSettingsCloseRequested);
  *  In-game editor for the drone physics parameters (UDronePhysicsConfig). The whole
  *  layout is built in C++ through the widget tree - no Widget Blueprint is needed;
  *  create it with CreateWidget using this class directly. One spin-box row per
- *  parameter, grouped into airframe / motor / environment / control sections; every
- *  change is written to the config immediately and broadcast through
- *  OnSettingsChanged so the active flight physics can pick it up live.
- *  SAVE persists to the Game ini, DEFAULTS restores the C++ defaults, and CLOSE
- *  (button, P or Esc) asks the owner to dismiss the panel.
+ *  parameter, grouped into airframe / motor / environment / control sections; edits
+ *  are written to the config but take effect only on SAVE, which persists to the
+ *  Game ini and broadcasts OnSettingsSaved. DEFAULTS restores the C++ defaults,
+ *  and CLOSE (button, P or Esc) asks the owner to dismiss the panel.
  */
 UCLASS()
 class UDronePhysicsSettingsWidget : public UUserWidget
@@ -30,9 +29,11 @@ class UDronePhysicsSettingsWidget : public UUserWidget
     GENERATED_BODY()
 
   public:
-    /** Fired after any parameter edit was written into UDronePhysicsConfig */
+    /** Fired when SAVE persisted the config; the active flight physics and the
+     *  dashboard pick the new values up here, not on every edit, so slider drags
+     *  neither disturb the flight nor flood the server */
     UPROPERTY(BlueprintAssignable, Category = "Drone Physics")
-    FOnPhysicsSettingsChanged OnSettingsChanged;
+    FOnPhysicsSettingsChanged OnSettingsSaved;
 
     /** Fired when the panel wants to be closed (CLOSE button, P or Esc key) */
     UPROPERTY(BlueprintAssignable, Category = "Drone Physics")

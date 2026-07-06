@@ -326,7 +326,6 @@ void UDronePhysicsSettingsWidget::HandleValueChanged(float InValue)
     {
         PresetCombo->ClearSelection();
     }
-    OnSettingsChanged.Broadcast();
 }
 
 auto UDronePhysicsSettingsWidget::HandleGeneratePresetItem(FString Item) -> UWidget *
@@ -353,7 +352,6 @@ void UDronePhysicsSettingsWidget::HandlePresetSelected(FString SelectedItem, ESe
             Config->Settings = Preset.Settings;
             Config->PresetName = Preset.Name;
             RebuildFromConfig();
-            OnSettingsChanged.Broadcast();
             return;
         }
     }
@@ -362,13 +360,13 @@ void UDronePhysicsSettingsWidget::HandlePresetSelected(FString SelectedItem, ESe
 void UDronePhysicsSettingsWidget::HandleSave()
 {
     UDronePhysicsConfig::Get()->Save();
+    OnSettingsSaved.Broadcast();
 }
 
 void UDronePhysicsSettingsWidget::HandleReset()
 {
     UDronePhysicsConfig::Get()->ResetToDefaults();
     RebuildFromConfig();
-    OnSettingsChanged.Broadcast();
 }
 
 void UDronePhysicsSettingsWidget::HandleClose()

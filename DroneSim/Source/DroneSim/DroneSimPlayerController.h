@@ -127,9 +127,10 @@ class ADroneSimPlayerController : public APlayerController
     UFUNCTION()
     void ClosePhysicsSettings();
 
-    /** Pushes edited physics parameters into whichever runner is flying right now */
+    /** SAVE button: applies the saved parameters to whichever runner is flying
+     *  right now and publishes them to the EEG dashboard */
     UFUNCTION()
-    void HandlePhysicsSettingsChanged();
+    void HandlePhysicsSettingsSaved();
 
     /** Saves the CSV and returns to the initial screen when the scenario ends */
     UFUNCTION()

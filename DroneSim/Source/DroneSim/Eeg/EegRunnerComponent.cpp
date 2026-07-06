@@ -101,7 +101,7 @@ auto UEegRunnerComponent::GetMetricsHistory() const -> TConstArrayView<FEegMetri
     return MetricsHistory;
 }
 
-void UEegRunnerComponent::NotifySettingsChanged()
+void UEegRunnerComponent::NotifySettingsSaved()
 {
     if (Physics.IsActive())
     {
@@ -109,9 +109,14 @@ void UEegRunnerComponent::NotifySettingsChanged()
     }
     if (Client.IsConnected())
     {
-        Client.SendPayload(EegProto::EncodePhysicsSettings(UDronePhysicsConfig::Get()->Settings,
-                                                           UDronePhysicsConfig::Get()->PresetName));
+        SendPhysicsSettings();
     }
+}
+
+void UEegRunnerComponent::SendPhysicsSettings()
+{
+    Client.SendPayload(
+        EegProto::EncodePhysicsSettings(UDronePhysicsConfig::Get()->Settings, UDronePhysicsConfig::Get()->PresetName));
 }
 
 auto UEegRunnerComponent::GetCurrentTilt() const -> FRotator
@@ -143,8 +148,7 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         else
         {
             // every (re)connect: show the active physics setup on the dashboard
-            Client.SendPayload(EegProto::EncodePhysicsSettings(UDronePhysicsConfig::Get()->Settings,
-                                                               UDronePhysicsConfig::Get()->PresetName));
+            SendPhysicsSettings();
         }
     }
 

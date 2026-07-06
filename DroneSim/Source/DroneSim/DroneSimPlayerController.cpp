@@ -143,8 +143,7 @@ void ADroneSimPlayerController::HandleRecordingRequested()
     // show the current action at the top center of the screen while playing
     if (CreateActionHud(TEXT("WAIT")))
     {
-        Systems->GetScenarioRunner()->OnActionChanged.AddDynamic(HudWidget.Get(),
-                                                                 &UScenarioHudWidget::SetActionLabel);
+        Systems->GetScenarioRunner()->OnActionChanged.AddDynamic(HudWidget.Get(), &UScenarioHudWidget::SetActionLabel);
     }
 
     // file name: recording start time in KST (yyyymmdd_hhmmss); the CSV
@@ -270,8 +269,7 @@ void ADroneSimPlayerController::TogglePhysicsSettings()
             FScenarioLog::Error(TEXT("Could not create the drone physics settings widget"));
             return;
         }
-        PhysicsSettingsWidget->OnSettingsChanged.AddDynamic(this,
-                                                            &ADroneSimPlayerController::HandlePhysicsSettingsChanged);
+        PhysicsSettingsWidget->OnSettingsSaved.AddDynamic(this, &ADroneSimPlayerController::HandlePhysicsSettingsSaved);
         PhysicsSettingsWidget->OnCloseRequested.AddDynamic(this, &ADroneSimPlayerController::ClosePhysicsSettings);
     }
 
@@ -298,11 +296,11 @@ void ADroneSimPlayerController::ClosePhysicsSettings()
     FScenarioLog::Info(TEXT("Drone physics settings closed"));
 }
 
-void ADroneSimPlayerController::HandlePhysicsSettingsChanged()
+void ADroneSimPlayerController::HandlePhysicsSettingsSaved()
 {
     if (Systems != nullptr)
     {
-        Systems->GetEegRunner()->NotifySettingsChanged();
+        Systems->GetEegRunner()->NotifySettingsSaved();
         Systems->GetScenarioRunner()->NotifySettingsChanged();
     }
 }
