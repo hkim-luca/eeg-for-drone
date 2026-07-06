@@ -46,3 +46,6 @@ env/
 # serena
 .serena
 eeg-server/logs/
+
+# 로컬 작업 문서(설계/계획 노트)는 버전관리하지 않음
+docs/
