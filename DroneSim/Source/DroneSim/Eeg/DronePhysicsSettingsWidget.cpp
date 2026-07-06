@@ -263,6 +263,9 @@ void UDronePhysicsSettingsWidget::AddParameterRow(UVerticalBox &List, int32 RowI
     Line->AddChildToHorizontalBox(SpinSize);
 
     USpinBox *Spin = WidgetTree->ConstructWidget<USpinBox>(USpinBox::StaticClass());
+    // the value number sits on the spin box's light fill, so it must be dark to read;
+    // the widget's own ForegroundColor overrides the style's, so set it here
+    Spin->SetForegroundColor(FSlateColor(FLinearColor::Black));
     Spin->SetMinValue(Row.Min);
     Spin->SetMaxValue(Row.Max);
     Spin->SetMinSliderValue(Row.Min);
