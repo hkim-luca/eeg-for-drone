@@ -1,6 +1,7 @@
 #include "DroneSimPlayerController.h"
 #include "Blueprint/UserWidget.h"
 #include "DroneSim.h"
+#include "DroneSystemsActor.h"
 #include "Eeg/DronePhysicsSettingsWidget.h"
 #include "Eeg/EegHudWidget.h"
 #include "Eeg/EegRunnerComponent.h"
@@ -20,12 +21,7 @@
 #include "Telemetry/DroneTelemetryComponent.h"
 #include "Widgets/Input/SVirtualJoystick.h"
 
-ADroneSimPlayerController::ADroneSimPlayerController()
-{
-    ScenarioRunner = CreateDefaultSubobject<UScenarioRunnerComponent>(TEXT("ScenarioRunner"));
-    EegRunner = CreateDefaultSubobject<UEegRunnerComponent>(TEXT("EegRunner"));
-    DroneTelemetry = CreateDefaultSubobject<UDroneTelemetryComponent>(TEXT("DroneTelemetry"));
-}
+ADroneSimPlayerController::ADroneSimPlayerController() = default;
 
 void ADroneSimPlayerController::BeginPlay()
 {
@@ -58,7 +54,17 @@ void ADroneSimPlayerController::BeginPlay()
                                            GetPawn() != nullptr ? *GetPawn()->GetClass()->GetName() : TEXT("NULL"),
                                            RecordingResolution, ScenarioMoveSpeed));
 
-        ScenarioRunner->OnScenarioFinished.AddDynamic(this, &ADroneSimPlayerController::HandleScenarioFinished);
+        // the game systems live on a level actor, not this controller; resolve it once
+        Systems = ADroneSystemsActor::Get(GetWorld());
+        if (Systems == nullptr)
+        {
+            FScenarioLog::Error(TEXT("No ADroneSystemsActor in this level; EEG/scenario modes are disabled. "
+                                     "Place a 'Drone Systems Actor' in the level (Place Actors panel) and save."));
+            return;
+        }
+
+        Systems->GetScenarioRunner()->OnScenarioFinished.AddDynamic(this,
+                                                                    &ADroneSimPlayerController::HandleScenarioFinished);
 
         // EEG running mode is the default; scenario collection is the secondary
         // function, selected with the -recording launch option
@@ -137,7 +143,8 @@ void ADroneSimPlayerController::HandleRecordingRequested()
     // show the current action at the top center of the screen while playing
     if (CreateActionHud(TEXT("WAIT")))
     {
-        ScenarioRunner->OnActionChanged.AddDynamic(HudWidget.Get(), &UScenarioHudWidget::SetActionLabel);
+        Systems->GetScenarioRunner()->OnActionChanged.AddDynamic(HudWidget.Get(),
+                                                                 &UScenarioHudWidget::SetActionLabel);
     }
 
     // file name: recording start time in KST (yyyymmdd_hhmmss); the CSV
@@ -145,7 +152,8 @@ void ADroneSimPlayerController::HandleRecordingRequested()
     const FString RecordingFileName = ScenarioTime::ToFileStampKst(ScenarioTime::NowKst());
 
     FScenarioLog::Info(FString::Printf(TEXT("Starting scenario: %s"), *LoadedScenario.FilePath));
-    ScenarioRunner->Start(LoadedScenario.Steps, RecordingResolution, ScenarioMoveSpeed, RecordingFileName);
+    Systems->GetScenarioRunner()->Start(LoadedScenario.Steps, RecordingResolution, ScenarioMoveSpeed,
+                                        RecordingFileName);
 }
 
 auto ADroneSimPlayerController::CreateActionHud(const FString &InitialLabel) -> bool
@@ -176,8 +184,8 @@ void ADroneSimPlayerController::StartEegRunningMode()
     if (EegHudWidget != nullptr)
     {
         EegHudWidget->AddToViewport(11);
-        EegHudWidget->SetRunner(EegRunner);
-        EegHudWidget->SetTelemetry(DroneTelemetry);
+        EegHudWidget->SetRunner(Systems->GetEegRunner());
+        EegHudWidget->SetTelemetry(Systems->GetTelemetry());
     }
     else
     {
@@ -185,12 +193,12 @@ void ADroneSimPlayerController::StartEegRunningMode()
                                  "on the player controller; running mode continues without graphs."));
     }
 
-    EegRunner->Start(ScenarioMoveSpeed);
+    Systems->GetEegRunner()->Start(ScenarioMoveSpeed);
 }
 
 void ADroneSimPlayerController::HandleScenarioFinished()
 {
-    const FString SavedPath = ScenarioRunner->GetRecordingPath();
+    const FString SavedPath = Systems->GetScenarioRunner()->GetRecordingPath();
 
     // show the result on the HUD, separate from the action label; on-screen debug messages do
     // not render in Shipping builds
@@ -292,8 +300,11 @@ void ADroneSimPlayerController::ClosePhysicsSettings()
 
 void ADroneSimPlayerController::HandlePhysicsSettingsChanged()
 {
-    EegRunner->NotifySettingsChanged();
-    ScenarioRunner->NotifySettingsChanged();
+    if (Systems != nullptr)
+    {
+        Systems->GetEegRunner()->NotifySettingsChanged();
+        Systems->GetScenarioRunner()->NotifySettingsChanged();
+    }
 }
 
 auto ADroneSimPlayerController::ShouldUseTouchControls() const -> bool

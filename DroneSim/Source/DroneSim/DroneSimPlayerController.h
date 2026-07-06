@@ -6,19 +6,20 @@
 
 #include "DroneSimPlayerController.generated.h"
 
+class ADroneSystemsActor;
 class UDronePhysicsSettingsWidget;
-class UDroneTelemetryComponent;
 class UEegHudWidget;
-class UEegRunnerComponent;
 class UInputMappingContext;
 class UUserWidget;
 class UScenarioHudWidget;
 class UScenarioMenuWidget;
-class UScenarioRunnerComponent;
 
 /**
- *  Basic PlayerController class for a third person game
- *  Manages input mappings, the scenario menu, scenario playback and EEG running mode.
+ *  Basic PlayerController class for a third person game.
+ *  Owns the per-player concerns: input mappings, the scenario menu and HUD widgets,
+ *  the physics settings panel, and the launch-time mode selection. The game systems
+ *  themselves (EEG link + pawn driver, scenario playback, telemetry) live on the
+ *  level's ADroneSystemsActor; this controller resolves that actor and drives it.
  *  The mode is selected at launch: by default EEG running mode starts immediately;
  *  the -recording command line option shows the scenario collection menu instead.
  */
@@ -99,17 +100,10 @@ class ADroneSimPlayerController : public APlayerController
     UPROPERTY()
     TObjectPtr<UDronePhysicsSettingsWidget> PhysicsSettingsWidget;
 
-    /** Component that plays scenarios and records positions */
-    UPROPERTY(VisibleAnywhere, Category = "Scenario")
-    TObjectPtr<UScenarioRunnerComponent> ScenarioRunner;
-
-    /** Component that drives the pawn from EEG server inferences in running mode */
-    UPROPERTY(VisibleAnywhere, Category = "Scenario")
-    TObjectPtr<UEegRunnerComponent> EegRunner;
-
-    /** Component that tracks the controlled pawn's flight state for the status overlay */
-    UPROPERTY(VisibleAnywhere, Category = "Scenario")
-    TObjectPtr<UDroneTelemetryComponent> DroneTelemetry;
+    /** Level actor hosting the drone session systems (EEG runner, scenario runner,
+     *  telemetry); resolved in BeginPlay via ADroneSystemsActor::Get */
+    UPROPERTY()
+    TObjectPtr<ADroneSystemsActor> Systems;
 
     /** Creates (if needed) and shows the initial menu screen */
     void ShowMenu();

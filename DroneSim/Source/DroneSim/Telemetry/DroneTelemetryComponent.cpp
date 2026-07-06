@@ -189,6 +189,9 @@ auto UDroneTelemetryComponent::GetHomePositionMeters() const -> FVector2D
 
 auto UDroneTelemetryComponent::GetControlledPawn() const -> APawn *
 {
-    const APlayerController *Controller = Cast<APlayerController>(GetOwner());
+    // hosted on the systems actor now, not the controller: track whichever pawn the
+    // local player currently possesses
+    const UWorld *World = GetWorld();
+    const APlayerController *Controller = World != nullptr ? World->GetFirstPlayerController() : nullptr;
     return Controller != nullptr ? Controller->GetPawn() : nullptr;
 }

@@ -113,8 +113,8 @@ void UScenarioRunnerComponent::UpdatePlayback(float DeltaTime)
 
     if (Phase == EPhase::Action)
     {
-        const APlayerController *Controller = Cast<APlayerController>(GetOwner());
-        const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
+        const APlayerController *Controller = GetWorld()->GetFirstPlayerController();
+        const FRotator YawRotation(0.0f, Controller != nullptr ? Controller->GetControlRotation().Yaw : 0.0f, 0.0f);
         Physics.SetMoveDirection(ScenarioActionDirection(Step.Action, YawRotation));
         PublishActionLabel(ScenarioActionName(Step.Action));
 
@@ -270,6 +270,9 @@ void UScenarioRunnerComponent::FlushSamples()
 
 auto UScenarioRunnerComponent::GetControlledPawn() const -> APawn *
 {
-    const APlayerController *Controller = Cast<APlayerController>(GetOwner());
+    // hosted on the systems actor now, not the controller: play back on whichever pawn
+    // the local player currently possesses
+    const UWorld *World = GetWorld();
+    const APlayerController *Controller = World != nullptr ? World->GetFirstPlayerController() : nullptr;
     return Controller != nullptr ? Controller->GetPawn() : nullptr;
 }
