@@ -2,12 +2,13 @@
 
 #include "Blueprint/UserWidget.h"
 #include "CoreMinimal.h"
-#include "Scenario/DronePhysicsPresets.h"
 
 #include "DronePhysicsSettingsWidget.generated.h"
 
 class UButton;
+class UCheckBox;
 class UComboBoxString;
+class UDronePhysicsSettingsViewModel;
 class USpinBox;
 class UVerticalBox;
 
@@ -15,13 +16,15 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPhysicsSettingsChanged);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPhysicsSettingsCloseRequested);
 
 /**
- *  In-game editor for the drone physics parameters (UDronePhysicsConfig). The whole
- *  layout is built in C++ through the widget tree - no Widget Blueprint is needed;
- *  create it with CreateWidget using this class directly. One spin-box row per
- *  parameter, grouped into airframe / motor / environment / control sections; edits
- *  are written to the config but take effect only on SAVE, which persists to the
- *  Game ini and broadcasts OnSettingsSaved. DEFAULTS restores the C++ defaults,
- *  and CLOSE (button, P or Esc) asks the owner to dismiss the panel.
+ *  In-game editor for the drone physics parameters; the view of an MVVM pair with
+ *  UDronePhysicsSettingsViewModel. The whole layout is built in C++ through the
+ *  widget tree - no Widget Blueprint is needed; create it with CreateWidget using
+ *  this class directly. One spin-box row per parameter descriptor, grouped into
+ *  airframe / motor / environment / control sections. Every read, write and rule
+ *  goes through the ViewModel: this class only builds controls, forwards input to
+ *  the commands and repaints on OnStateChanged. SAVE persists via the ViewModel
+ *  and surfaces here as OnSettingsSaved; DEFAULTS restores the C++ defaults, and
+ *  CLOSE (button, P or Esc) asks the owner to dismiss the panel.
  */
 UCLASS()
 class UDronePhysicsSettingsWidget : public UUserWidget
@@ -39,8 +42,8 @@ class UDronePhysicsSettingsWidget : public UUserWidget
     UPROPERTY(BlueprintAssignable, Category = "Drone Physics")
     FOnPhysicsSettingsCloseRequested OnCloseRequested;
 
-    /** Reloads every spin box from the current config values */
-    void RebuildFromConfig();
+    /** Reloads every control from the ViewModel state */
+    void RefreshFromViewModel();
 
   protected:
     auto Initialize() -> bool override;
@@ -56,17 +59,28 @@ class UDronePhysicsSettingsWidget : public UUserWidget
     /** Adds an amber section caption to the list */
     void AddSectionHeader(UVerticalBox &List, const FString &Title);
 
-    /** Adds one label + spin box row for the parameter table entry RowIndex */
+    /** Adds one label + spin box row for the ViewModel parameter descriptor RowIndex */
     void AddParameterRow(UVerticalBox &List, int32 RowIndex);
+
+    /** Adds one label + checkbox row and returns the checkbox for binding */
+    auto AddToggleRow(UVerticalBox &List, const FString &Label) -> UCheckBox *;
 
     /** Adds one bottom button and returns it */
     auto AddButton(class UHorizontalBox &Bar, const FString &Caption) -> UButton *;
 
-    /** Writes every spin box value back into the config (called on any edit) */
+    /** Forwards every spin box value to the ViewModel (called on any edit) */
     UFUNCTION()
     void HandleValueChanged(float InValue);
 
-    /** Applies the chosen weight-class preset to the config and the spin boxes */
+    /** Forwards the yaw control mode toggle to the ViewModel */
+    UFUNCTION()
+    void HandleMouseYawChanged(bool bIsChecked);
+
+    /** Forwards the Left/Right action mapping toggle (strafe vs turn) to the ViewModel */
+    UFUNCTION()
+    void HandleTurnModeChanged(bool bIsChecked);
+
+    /** Forwards the chosen weight-class preset to the ViewModel */
     UFUNCTION()
     void HandlePresetSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
 
@@ -84,7 +98,11 @@ class UDronePhysicsSettingsWidget : public UUserWidget
     UFUNCTION()
     void HandleClose();
 
-    /** Spin boxes in parameter-table order, for bulk read/write */
+    /** State owner and command target of this view */
+    UPROPERTY()
+    TObjectPtr<UDronePhysicsSettingsViewModel> ViewModel;
+
+    /** Spin boxes in parameter-descriptor order, for bulk read/write */
     UPROPERTY()
     TArray<TObjectPtr<USpinBox>> SpinBoxes;
 
@@ -92,9 +110,14 @@ class UDronePhysicsSettingsWidget : public UUserWidget
     UPROPERTY()
     TObjectPtr<UComboBoxString> PresetCombo;
 
-    /** Airframes loaded from Content/Drones/DronePresets.json (built-ins on error) */
-    TArray<FDroneAirframePreset> Presets;
+    /** Yaw control mode checkbox (CONTROL section) */
+    UPROPERTY()
+    TObjectPtr<UCheckBox> MouseYawCheck;
 
-    /** Guards HandleValueChanged while RebuildFromConfig is writing the spin boxes */
+    /** Left/Right action mapping checkbox: strafe (off) or turn in place (on) */
+    UPROPERTY()
+    TObjectPtr<UCheckBox> TurnModeCheck;
+
+    /** Guards the edit handlers while RefreshFromViewModel is writing the controls */
     bool bRebuilding = false;
 };

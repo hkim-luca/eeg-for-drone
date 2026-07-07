@@ -126,4 +126,59 @@ auto FDroneControllerCruiseTest::RunTest(const FString &Parameters) -> bool
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDroneControllerTurnInPlaceTest, "DroneSim.Physics.Controller.TurnInPlace",
+                                 EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+auto FDroneControllerTurnInPlaceTest::RunTest(const FString &Parameters) -> bool
+{
+    const FDronePhysicsSettings Settings = QuietControllerSettings();
+    FDroneFlightModel Model;
+    Model.SetSettings(Settings);
+    Model.Reset(FVector(0.0, 0.0, 5.0), 0.0);
+
+    FDroneFlightController Controller;
+    Controller.Reset(Settings, /*HoldAltitudeM=*/5.0, /*HoldYawRad=*/0.0);
+
+    // yaw at 90 deg/s for 1.5 s ramps the setpoint to 135 deg, then 1.5 s with the
+    // command released must converge on that heading without translating
+    Controller.SetYawRateRadS(FMath::DegreesToRadians(90.0));
+    RunClosedLoop(Controller, Model, FVector::ZeroVector, 1.5);
+    Controller.SetYawRateRadS(0.0);
+    RunClosedLoop(Controller, Model, FVector::ZeroVector, 1.5);
+
+    const FDroneFlightState &State = Model.GetState();
+    const double YawDeg = State.Attitude.Rotator().Yaw;
+    UE_LOG(LogTemp, Display, TEXT("TurnInPlace: yaw=%.2f deg, drift=%.3f m, yaw rate=%.3f rad/s"), YawDeg,
+           State.Position.Size2D(), State.AngularVelocity.Z);
+    TestTrue(TEXT("heading reached the integrated setpoint (135 deg)"), FMath::Abs(YawDeg - 135.0) < 3.0);
+    TestTrue(TEXT("turned in place (no horizontal drift)"), State.Position.Size2D() < 0.5);
+    TestTrue(TEXT("altitude held while turning"), FMath::Abs(State.Position.Z - 5.0) < 0.5);
+    TestTrue(TEXT("turn finished (yaw rate died down)"), FMath::Abs(State.AngularVelocity.Z) < 0.05);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDroneControllerStrafeHoldsYawTest, "DroneSim.Physics.Controller.StrafeHoldsYaw",
+                                 EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+auto FDroneControllerStrafeHoldsYawTest::RunTest(const FString &Parameters) -> bool
+{
+    const FDronePhysicsSettings Settings = QuietControllerSettings();
+    FDroneFlightModel Model;
+    Model.SetSettings(Settings);
+    Model.Reset(FVector(0.0, 0.0, 5.0), 0.0);
+
+    FDroneFlightController Controller;
+    Controller.Reset(Settings, /*HoldAltitudeM=*/5.0, /*HoldYawRad=*/0.0);
+
+    // strafe right (+Y) without any yaw command: the drone must translate sideways
+    // while its heading stays where Reset() put it
+    RunClosedLoop(Controller, Model, FVector::RightVector, 3.0);
+
+    const FDroneFlightState &State = Model.GetState();
+    UE_LOG(LogTemp, Display, TEXT("StrafeHoldsYaw: vy=%.2f m/s, yaw=%.2f deg"), State.Velocity.Y,
+           State.Attitude.Rotator().Yaw);
+    TestTrue(TEXT("strafing sideways"), State.Velocity.Y > 2.0);
+    TestTrue(TEXT("heading unchanged while strafing"), FMath::Abs(State.Attitude.Rotator().Yaw) < 2.0);
+    TestTrue(TEXT("altitude held while strafing"), FMath::Abs(State.Position.Z - 5.0) < 0.5);
+    return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

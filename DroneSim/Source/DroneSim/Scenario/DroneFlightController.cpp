@@ -22,7 +22,8 @@ void FDroneFlightController::Reset(const FDronePhysicsSettings &InSettings, doub
 {
     Settings = InSettings;
     HoldAltitudeM = HoldAltitudeM_;
-    HoldYawRad = HoldYawRad_;
+    YawTargetRad = HoldYawRad_;
+    YawRateRadS = 0.0;
     VelocityIntegral = FVector::ZeroVector;
     PreviousRate = FVector::ZeroVector;
     FilteredAngularAccel = FVector::ZeroVector;
@@ -33,11 +34,28 @@ void FDroneFlightController::SetSettings(const FDronePhysicsSettings &InSettings
     Settings = InSettings;
 }
 
-void FDroneFlightController::Compute(const FDroneFlightState &State, const FVector &MoveDirection, double DeltaTimeS,
+void FDroneFlightController::SetYawTargetRad(double InYawTargetRad)
+{
+    YawTargetRad = InYawTargetRad;
+}
+
+void FDroneFlightController::SetYawRateRadS(double InYawRateRadS)
+{
+    YawRateRadS = InYawRateRadS;
+}
+
+void FDroneFlightController::Compute(const FDroneFlightState &State, const FVector &MoveInput, double DeltaTimeS,
                                      double OutMotorCommands[DroneMaxMotorCount])
 {
-    // --- velocity setpoint: horizontal from the action, vertical from the altitude hold ---
-    FVector DesiredVelocity = MoveDirection.GetSafeNormal2D() * Settings.MaxSpeedMS;
+    // --- velocity setpoint: horizontal from the stick (its length is the throttle
+    // fraction, clamped to the unit circle), vertical from the altitude hold ---
+    FVector2D Stick(MoveInput.X, MoveInput.Y);
+    const double StickSize = Stick.Size();
+    if (StickSize > 1.0)
+    {
+        Stick /= StickSize;
+    }
+    FVector DesiredVelocity(Stick.X * Settings.MaxSpeedMS, Stick.Y * Settings.MaxSpeedMS, 0.0);
     DesiredVelocity.Z = FMath::Clamp(AltitudeGain * (HoldAltitudeM - State.Position.Z), -Settings.MaxClimbRateMS,
                                      Settings.MaxClimbRateMS);
 
@@ -59,11 +77,13 @@ void FDroneFlightController::Compute(const FDroneFlightState &State, const FVect
     }
     Acceleration.Z = FMath::Clamp(Acceleration.Z, -0.8 * Settings.GravityMS2, 2.0 * Settings.GravityMS2);
 
-    // --- desired attitude: tilt that points body z along the required specific force, yaw held ---
+    // --- desired attitude: tilt that points body z along the required specific force,
+    // yaw tracking the setpoint ramped by the turn command ---
+    YawTargetRad = FMath::UnwindRadians(YawTargetRad + YawRateRadS * DeltaTimeS);
     const FVector SpecificForce(Acceleration.X, Acceleration.Y, Acceleration.Z + Settings.GravityMS2);
     const FVector ThrustDir = SpecificForce.IsNearlyZero() ? FVector::UpVector : SpecificForce.GetUnsafeNormal();
     const FQuat DesiredAttitude =
-        FQuat::FindBetweenNormals(FVector::UpVector, ThrustDir) * FQuat(FVector::UpVector, HoldYawRad);
+        FQuat::FindBetweenNormals(FVector::UpVector, ThrustDir) * FQuat(FVector::UpVector, YawTargetRad);
 
     // --- attitude P: quaternion error as a body-frame rotation vector -> rate setpoint ---
     FQuat ErrorQuat = State.Attitude.Inverse() * DesiredAttitude;

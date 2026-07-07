@@ -1,6 +1,7 @@
 #include "DroneSimPlayerController.h"
 #include "Blueprint/UserWidget.h"
 #include "DroneSim.h"
+#include "DroneSimCharacter.h"
 #include "DroneSystemsActor.h"
 #include "Eeg/DronePhysicsSettingsWidget.h"
 #include "Eeg/EegHudWidget.h"
@@ -13,6 +14,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "Scenario/DronePhysicsConfig.h"
 #include "Scenario/ScenarioHudWidget.h"
 #include "Scenario/ScenarioLog.h"
 #include "Scenario/ScenarioMenuWidget.h"
@@ -289,7 +291,7 @@ void ADroneSimPlayerController::TogglePhysicsSettings()
         PhysicsSettingsWidget->OnCloseRequested.AddDynamic(this, &ADroneSimPlayerController::ClosePhysicsSettings);
     }
 
-    PhysicsSettingsWidget->RebuildFromConfig();
+    PhysicsSettingsWidget->RefreshFromViewModel();
     PhysicsSettingsWidget->AddToViewport(20);
 
     // UI-only input while editing; the game keeps simulating behind the panel
@@ -318,6 +320,13 @@ void ADroneSimPlayerController::HandlePhysicsSettingsSaved()
     {
         Systems->GetEegRunner()->NotifySettingsSaved();
         Systems->GetScenarioRunner()->NotifySettingsChanged();
+    }
+
+    // the runners forward settings only while their physics is active; the yaw/camera
+    // coupling must switch on the pawn immediately, flying or not
+    if (ADroneSimCharacter *DroneCharacter = Cast<ADroneSimCharacter>(GetPawn()))
+    {
+        DroneCharacter->ApplyYawControlMode(UDronePhysicsConfig::Get()->Settings.bMouseYawControl);
     }
 }
 

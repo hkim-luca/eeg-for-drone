@@ -4,13 +4,22 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/PlatformTime.h"
-#include "ScenarioActionInput.h"
 #include "ScenarioLog.h"
 
 namespace
 {
 /** Label published while the server connection is not up; not an action name */
 const TCHAR *ConnectingLabel = TEXT("CONNECTING");
+
+/** Stick travel below which an axis reads zero: a real classifier never balances its
+ *  opposing probabilities exactly, and without a deadzone that residual would drift
+ *  the drone while the inference says STOP */
+constexpr float AxisDeadzone = 0.1f;
+
+auto ApplyAxisDeadzone(float Axis) -> float
+{
+    return FMath::Abs(Axis) < AxisDeadzone ? 0.0f : Axis;
+}
 } // namespace
 
 UEegRunnerComponent::UEegRunnerComponent()
@@ -142,7 +151,9 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         bWasConnected = Client.IsConnected();
         if (!bWasConnected)
         {
-            CurrentAction = EScenarioAction::Stop; // stale commands must not keep the drone moving
+            // stale commands must not keep the drone moving
+            CurrentAction = EScenarioAction::Stop;
+            FMemory::Memzero(LastActionProbs);
             PublishActionLabel(ConnectingLabel);
         }
         else
@@ -160,7 +171,9 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
     }
     PendingFrames.Reset();
 
-    // 3) apply the inferred action to the pawn with the shared scenario movement rules
+    // 3) apply the inference as two-axis transmitter input: each axis is the net
+    // probability of its opposing actions, a throttle in [-1, 1], so the drone can fly
+    // diagonals and partial speeds instead of snapping to the single winning action
     APawn *Pawn = GetControlledPawn();
     if (Pawn != nullptr)
     {
@@ -174,9 +187,31 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
             }
         }
 
-        const APlayerController *Controller = GetWorld()->GetFirstPlayerController();
-        const FRotator YawRotation(0.0f, Controller != nullptr ? Controller->GetControlRotation().Yaw : 0.0f, 0.0f);
-        Physics.SetMoveDirection(ScenarioActionDirection(CurrentAction, YawRotation));
+        const float PitchAxis = ApplyAxisDeadzone(LastActionProbs[EegConfig::ProbIndex(EScenarioAction::Forward)] -
+                                                  LastActionProbs[EegConfig::ProbIndex(EScenarioAction::Backward)]);
+        const float RollAxis = ApplyAxisDeadzone(LastActionProbs[EegConfig::ProbIndex(EScenarioAction::Right)] -
+                                                 LastActionProbs[EegConfig::ProbIndex(EScenarioAction::Left)]);
+
+        // the stick frame follows the drone's own heading: in mouse-yaw mode the pawn
+        // yaw tracks the control rotation anyway, and in camera-follow mode the
+        // decoupled control rotation must not steer the movement
+        const FDronePhysicsSettings &PhysicsSettings = Physics.GetSettings();
+        const FRotator YawRotation(0.0f, Pawn->GetActorRotation().Yaw, 0.0f);
+        const FVector ForwardDir = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+        const FVector RightDir = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+        if (PhysicsSettings.bTurnWithLeftRight)
+        {
+            // mode-2 style: the roll axis becomes the rudder and throttles the turn rate
+            Physics.SetMoveInput(ForwardDir * PitchAxis);
+            Physics.SetYawRate(RollAxis * FMath::DegreesToRadians(PhysicsSettings.TurnRateDegS));
+        }
+        else
+        {
+            Physics.SetMoveInput(ForwardDir * PitchAxis + RightDir * RollAxis);
+            Physics.SetYawRate(0.0);
+        }
+
         if (bWasConnected)
         {
             PublishActionLabel(ScenarioActionName(CurrentAction));

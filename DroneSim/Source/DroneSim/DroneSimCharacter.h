@@ -53,6 +53,9 @@ class ADroneSimCharacter : public ACharacter
     ADroneSimCharacter();
 
   protected:
+    /** Applies the persisted yaw control mode to the pawn */
+    virtual void BeginPlay() override;
+
     /** Initialize input action bindings */
     virtual void SetupPlayerInputComponent(class UInputComponent *PlayerInputComponent) override;
 
@@ -86,6 +89,13 @@ class ADroneSimCharacter : public ACharacter
      *  starts and when the preset changes live. An empty path keeps the Blueprint's
      *  own body; a path that fails to load keeps the body and logs once. */
     void ApplyAirframeMesh(const FString &MeshPath);
+
+    /** Couples or decouples the camera from the mouse (FDronePhysicsSettings::
+     *  bMouseYawControl): true lets the camera orbit with the control rotation (the
+     *  flight physics turns the body after it); false rigidly parks the camera boom
+     *  behind the drone's own heading. Called on BeginPlay and whenever the physics
+     *  settings are (re)applied. */
+    void ApplyYawControlMode(bool bMouseYawControl);
 
   protected:
     /** Mesh paths already reported as unloadable, to log each of them only once */

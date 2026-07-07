@@ -5,6 +5,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/PlayerController.h"
 #include "ScenarioLog.h"
 
 namespace
@@ -14,6 +15,9 @@ constexpr double NoGroundZM = -1.0e6;
 
 /** Longest frame time integrated per tick; hitches beyond this are dropped, not simulated */
 constexpr double MaxFrameTimeS = 0.25;
+
+/** Yaw rate below which a turn counts as finished when settling (rad/s, ~5 deg/s) */
+constexpr double SettleYawRateRadS = 0.0873;
 
 constexpr double CmPerMeter = 100.0;
 } // namespace
@@ -41,6 +45,7 @@ void FDronePhysics::Begin(ACharacter &InCharacter, float MoveSpeed, const FDrone
     if (ADroneSimCharacter *DroneCharacter = Cast<ADroneSimCharacter>(&InCharacter))
     {
         DroneCharacter->ApplyAirframeMesh(Settings.AirframeMeshPath);
+        DroneCharacter->ApplyYawControlMode(Settings.bMouseYawControl);
     }
 
     if (const USkeletalMeshComponent *Mesh = InCharacter.GetMesh())
@@ -48,21 +53,32 @@ void FDronePhysics::Begin(ACharacter &InCharacter, float MoveSpeed, const FDrone
         MeshBaseRotation = Mesh->GetRelativeRotation().Quaternion();
     }
 
-    HoldYawRad = FMath::DegreesToRadians(InCharacter.GetActorRotation().Yaw);
+    const double StartYawRad = FMath::DegreesToRadians(InCharacter.GetActorRotation().Yaw);
     Model.SetSettings(Settings);
-    Model.Reset(InCharacter.GetActorLocation() / CmPerMeter, HoldYawRad);
+    Model.Reset(InCharacter.GetActorLocation() / CmPerMeter, StartYawRad);
     HoldAltitudeM = Model.GetState().Position.Z + Settings.TakeoffAltitudeM;
-    Controller.Reset(Settings, HoldAltitudeM, HoldYawRad);
+    Controller.Reset(Settings, HoldAltitudeM, StartYawRad);
 
-    MoveDirection = FVector::ZeroVector;
+    MoveInput = FVector::ZeroVector;
+    YawRateRadS = 0.0;
     CurrentTilt = FRotator::ZeroRotator;
     TimeAccumulator = 0.0;
     bActive = true;
 }
 
-void FDronePhysics::SetMoveDirection(const FVector &WorldDirection)
+void FDronePhysics::SetMoveInput(const FVector &WorldInput)
 {
-    MoveDirection = WorldDirection;
+    MoveInput = WorldInput;
+}
+
+void FDronePhysics::SetYawRate(double InYawRateRadS)
+{
+    YawRateRadS = InYawRateRadS;
+}
+
+auto FDronePhysics::GetSettings() const -> const FDronePhysicsSettings &
+{
+    return Settings;
 }
 
 void FDronePhysics::UpdateSettings(const FDronePhysicsSettings &InSettings)
@@ -79,6 +95,7 @@ void FDronePhysics::UpdateSettings(const FDronePhysicsSettings &InSettings)
     if (ADroneSimCharacter *DroneCharacter = Cast<ADroneSimCharacter>(Character.Get()))
     {
         DroneCharacter->ApplyAirframeMesh(Settings.AirframeMeshPath);
+        DroneCharacter->ApplyYawControlMode(Settings.bMouseYawControl);
     }
 }
 
@@ -90,6 +107,22 @@ void FDronePhysics::Tick(float DeltaTime)
         return;
     }
 
+    // mouse-yaw mode: the control rotation is the yaw setpoint and the body turns to
+    // follow it physically; otherwise the setpoint ramps at the commanded turn rate
+    if (Settings.bMouseYawControl)
+    {
+        const APlayerController *PC = Drone->GetWorld()->GetFirstPlayerController();
+        if (PC != nullptr)
+        {
+            Controller.SetYawTargetRad(FMath::DegreesToRadians(PC->GetControlRotation().Yaw));
+        }
+        Controller.SetYawRateRadS(0.0);
+    }
+    else
+    {
+        Controller.SetYawRateRadS(YawRateRadS);
+    }
+
     const double GroundZM = TraceGroundZ();
     const double StepS = 1.0 / FMath::Max(Settings.SubstepHz, 1);
     TimeAccumulator = FMath::Min(TimeAccumulator + DeltaTime, MaxFrameTimeS);
@@ -97,7 +130,7 @@ void FDronePhysics::Tick(float DeltaTime)
     while (TimeAccumulator >= StepS)
     {
         double MotorCommands[DroneMaxMotorCount] = {};
-        Controller.Compute(Model.GetState(), MoveDirection, StepS, MotorCommands);
+        Controller.Compute(Model.GetState(), MoveInput, StepS, MotorCommands);
         Model.Advance(StepS, MotorCommands, GroundZM);
         TimeAccumulator -= StepS;
     }
@@ -113,8 +146,9 @@ void FDronePhysics::Tick(float DeltaTime)
     else
     {
         FScenarioLog::Error(TEXT("Drone physics diverged (non-finite state); resetting at the current pose"));
-        Model.Reset(Drone->GetActorLocation() / CmPerMeter, HoldYawRad);
-        Controller.Reset(Settings, HoldAltitudeM, HoldYawRad);
+        const double ResetYawRad = FMath::DegreesToRadians(Drone->GetActorRotation().Yaw);
+        Model.Reset(Drone->GetActorLocation() / CmPerMeter, ResetYawRad);
+        Controller.Reset(Settings, HoldAltitudeM, ResetYawRad);
         CurrentTilt = FRotator::ZeroRotator;
     }
 }
@@ -142,8 +176,12 @@ void FDronePhysics::ApplyToActor(ACharacter &Drone)
         Movement->Velocity = State.Velocity * CmPerMeter;
     }
 
-    // body tilt in the actor's yaw frame; the actor root keeps its yaw-only rotation
-    const FQuat YawQuat(FVector::UpVector, HoldYawRad);
+    // the actor root carries the simulated heading (yaw only); the roll/pitch tilt is
+    // decomposed in that yaw frame and applied to the mesh on top of it
+    const double YawDeg = State.Attitude.Rotator().Yaw;
+    Drone.SetActorRotation(FRotator(0.0, YawDeg, 0.0));
+
+    const FQuat YawQuat(FVector::UpVector, FMath::DegreesToRadians(YawDeg));
     FRotator Tilt = (YawQuat.Inverse() * State.Attitude).Rotator();
     Tilt.Yaw = 0.0;
     CurrentTilt = Tilt;
@@ -192,8 +230,12 @@ auto FDronePhysics::IsSettled() const -> bool
         return true;
     }
 
+    // a turn-in-place keeps the body level and slow, so the yaw rate must also die
+    // down before the drone counts as settled
     const double SpeedCmS = Model.GetState().Velocity.Size2D() * CmPerMeter;
-    return SpeedCmS < Settings.SettleSpeedThreshold && CurrentTilt.IsNearlyZero(Settings.SettleTiltThreshold);
+    const double YawRateAbs = FMath::Abs(Model.GetState().AngularVelocity.Z);
+    return SpeedCmS < Settings.SettleSpeedThreshold && CurrentTilt.IsNearlyZero(Settings.SettleTiltThreshold) &&
+           YawRateAbs < SettleYawRateRadS;
 }
 
 void FDronePhysics::End()

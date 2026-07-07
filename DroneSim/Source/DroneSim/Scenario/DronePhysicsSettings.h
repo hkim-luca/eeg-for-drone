@@ -156,6 +156,24 @@ struct FDronePhysicsSettings
     UPROPERTY(EditAnywhere, Category = "Control", meta = (ClampMin = "250", ClampMax = "4000"))
     int32 SubstepHz = 1000;
 
+    /** True: the mouse steers the drone's yaw setpoint (the camera orbits with the
+     *  mouse and the body physically turns to follow it). False: the mouse is
+     *  decoupled from yaw and the camera is locked behind the drone's own heading.
+     *  Applied to the pawn by ADroneSimCharacter::ApplyYawControlMode. Mutually
+     *  exclusive with bTurnWithLeftRight - both own the yaw setpoint. */
+    UPROPERTY(EditAnywhere, Category = "Control")
+    bool bMouseYawControl = false;
+
+    /** True: the Left/Right actions yaw the drone in place (turn-left/turn-right at
+     *  TurnRateDegS). False: they strafe sideways instead. Mutually exclusive with
+     *  bMouseYawControl, which would silently swallow the turn commands. */
+    UPROPERTY(EditAnywhere, Category = "Control")
+    bool bTurnWithLeftRight = true;
+
+    /** Yaw rate commanded by turn-left/turn-right while bTurnWithLeftRight is on */
+    UPROPERTY(EditAnywhere, Category = "Control", meta = (ClampMin = "5.0", ClampMax = "360.0", ForceUnits = "deg/s"))
+    double TurnRateDegS = 180.0;
+
     // --- Settle detection (meaning unchanged from the legacy physics) ---
 
     /** Speed below which the drone counts as stopped when settling between actions */
@@ -220,6 +238,13 @@ struct FDronePhysicsSettings
         Fix(AttPGain, Defaults.AttPGain, 0.5, 50.0);
         Fix(RatePGain, Defaults.RatePGain, 1.0, 200.0);
         Fix(RateDGain, Defaults.RateDGain, 0.0, 5.0);
+        Fix(TurnRateDegS, Defaults.TurnRateDegS, 5.0, 360.0);
+        // the settings UI enforces the exclusivity, but a hand-edited ini can carry
+        // both flags; the turn actions win so EEG Left/Right commands never vanish
+        if (bMouseYawControl && bTurnWithLeftRight)
+        {
+            bMouseYawControl = false;
+        }
         SubstepHz = FMath::Clamp(SubstepHz, 250, 4000);
         SettleSpeedThreshold =
             FMath::Clamp(FMath::IsFinite(SettleSpeedThreshold) ? SettleSpeedThreshold : Defaults.SettleSpeedThreshold,

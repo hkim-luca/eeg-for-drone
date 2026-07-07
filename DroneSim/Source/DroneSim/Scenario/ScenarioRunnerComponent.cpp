@@ -113,9 +113,14 @@ void UScenarioRunnerComponent::UpdatePlayback(float DeltaTime)
 
     if (Phase == EPhase::Action)
     {
-        const APlayerController *Controller = GetWorld()->GetFirstPlayerController();
-        const FRotator YawRotation(0.0f, Controller != nullptr ? Controller->GetControlRotation().Yaw : 0.0f, 0.0f);
-        Physics.SetMoveDirection(ScenarioActionDirection(Step.Action, YawRotation));
+        // the action frame follows the drone's own heading: in mouse-yaw mode the pawn
+        // yaw tracks the control rotation anyway, and in camera-follow mode the
+        // decoupled control rotation must not steer the movement
+        const FDronePhysicsSettings &PhysicsSettings = Physics.GetSettings();
+        const FRotator YawRotation(0.0f, Pawn->GetActorRotation().Yaw, 0.0f);
+        Physics.SetMoveInput(ScenarioActionDirection(Step.Action, YawRotation, PhysicsSettings.bTurnWithLeftRight));
+        Physics.SetYawRate(
+            ScenarioActionYawRate(Step.Action, PhysicsSettings.bTurnWithLeftRight, PhysicsSettings.TurnRateDegS));
         PublishActionLabel(ScenarioActionName(Step.Action));
 
         StepElapsed += DeltaTime;
@@ -128,7 +133,8 @@ void UScenarioRunnerComponent::UpdatePlayback(float DeltaTime)
     }
 
     // settle phase: no input; wait until the drone has stopped and is level again
-    Physics.SetMoveDirection(FVector::ZeroVector);
+    Physics.SetMoveInput(FVector::ZeroVector);
+    Physics.SetYawRate(0.0);
     PublishActionLabel(SettlingLabel);
     SettleElapsed += DeltaTime;
 

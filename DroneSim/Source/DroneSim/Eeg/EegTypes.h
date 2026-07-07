@@ -59,6 +59,19 @@ inline constexpr EScenarioAction ProbOrder[] = {EScenarioAction::Forward, EScena
                                                 EScenarioAction::Left, EScenarioAction::Right, EScenarioAction::Stop};
 
 inline constexpr int32 ProbCount = 5;
+
+/** Index of one action inside ActionProbs (the ProbOrder position); INDEX_NONE if absent */
+inline constexpr auto ProbIndex(EScenarioAction Action) -> int32
+{
+    for (int32 Index = 0; Index < ProbCount; ++Index)
+    {
+        if (ProbOrder[Index] == Action)
+        {
+            return Index;
+        }
+    }
+    return INDEX_NONE;
+}
 } // namespace EegConfig
 
 /** One 100 ms block of simulated EEG ready to be sent to the EEG server */

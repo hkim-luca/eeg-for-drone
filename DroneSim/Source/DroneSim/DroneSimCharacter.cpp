@@ -11,6 +11,7 @@
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputActionValue.h"
+#include "Scenario/DronePhysicsConfig.h"
 #include "Scenario/ScenarioLog.h"
 
 void ADroneSimCharacter::ApplyAirframeMesh(const FString &MeshPath)
@@ -78,6 +79,24 @@ ADroneSimCharacter::ADroneSimCharacter()
 
     // Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character)
     // are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+}
+
+void ADroneSimCharacter::BeginPlay()
+{
+    Super::BeginPlay();
+
+    // the Character Blueprint hardwires bUseControllerRotationYaw; the persisted
+    // setting must win from the first frame, not only when a run begins
+    ApplyYawControlMode(UDronePhysicsConfig::Get()->Settings.bMouseYawControl);
+}
+
+void ADroneSimCharacter::ApplyYawControlMode(bool bMouseYawControl)
+{
+    // the flight physics owns the pawn yaw (the body turns through its own dynamics);
+    // the engine must never snap it to the control rotation, even in mouse-yaw mode -
+    // there the mouse steers the physics yaw setpoint instead
+    bUseControllerRotationYaw = false;
+    CameraBoom->bUsePawnControlRotation = bMouseYawControl;
 }
 
 void ADroneSimCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputComponent)

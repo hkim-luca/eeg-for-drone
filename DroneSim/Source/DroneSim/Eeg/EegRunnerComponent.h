@@ -16,10 +16,12 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEegActionChanged, const FString &
 /**
  *  Drives the EEG running mode on the owning player controller's pawn:
  *  every tick it pumps the simulated 32-electrode EEG device, streams the completed
- *  100 ms frames to the EEG server, applies the last EScenarioAction the server inferred
- *  as movement input (with the same drone physics as scenario playback), and confirms
- *  each applied action back to the server so it can measure inference-to-control latency.
- *  Runs until Stop(); the connection reconnects automatically if the server restarts.
+ *  100 ms frames to the EEG server, applies the last inference result as two-axis
+ *  transmitter input - pitch = P(forward)-P(backward), roll = P(right)-P(left), each
+ *  a throttle in [-1, 1] fed to the same drone physics as scenario playback - and
+ *  confirms each applied action back to the server so it can measure
+ *  inference-to-control latency. Runs until Stop(); the connection reconnects
+ *  automatically if the server restarts.
  */
 UCLASS(ClassGroup = (Eeg), meta = (BlueprintSpawnableComponent))
 class UEegRunnerComponent : public UActorComponent
