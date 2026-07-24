@@ -38,8 +38,12 @@ pip install -r requirements.txt
 python eeg_dashboard.py        # PORT = "COM5"
 ```
 
+> 실시간 창 응답성을 위해 **QtAgg 백엔드**(PyQt5)를 사용한다. PyQt5가 설치돼 있으면
+> 자동 선택되고, 없으면 기본 백엔드로 동작하며 설치를 안내한다.
+
 - 상단: raw EEG 파형(512Hz, 2초 스크롤) + 신호품질
-- 하단: 8개 대역파워(delta~midGamma) + 집중도/명상도
+- 중단: 8개 대역파워(delta~midGamma) 막대
+- 하단: attention/meditation eSense 시간축 이중 라인 차트(0~100, 스크롤)
 - 대역·집중도·명상도는 1초에 한 번 오므로 실행 후 1~2초 뒤 채워진다.
 - 신호품질이 `GOOD`이어야 값이 유효하다 → 이마 전극 + 귀 클립 밀착.
 
