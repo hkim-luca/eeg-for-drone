@@ -45,6 +45,13 @@
 			]
 		},
 		{
+			"Name": "PythonScriptPlugin",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
 			"Name": "PythonAutomationTest",
 			"Enabled": true,
 			"TargetAllowList": [

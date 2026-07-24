@@ -51,5 +51,7 @@ eeg-server/logs/
 docs/
 
 # 대용량 위성 텍스처(1.92GB) — git 미포함, GitHub Release로 배포
-# 내려받기: pwsh scripts/download_large_assets.ps1
+# 프로젝트를 에디터에서 열면 init_unreal.py 가 자동 다운로드한다.
 /DroneSim/Content/Maps/daejeon_satellite_z16.uasset
+# 다운로드 중 임시 파일
+*.part

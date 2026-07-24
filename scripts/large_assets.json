@@ -1,0 +1,12 @@
+{
+  "repo": "hkim-luca/eeg-for-drone",
+  "tag": "large-assets",
+  "assets": [
+    {
+      "name": "daejeon_satellite_z16.uasset",
+      "dest": "DroneSim/Content/Maps/daejeon_satellite_z16.uasset",
+      "size": 2058129989,
+      "sha256": "090b5b7305bf35771ccf059630aa28df72050aedddd51e936da0b6762ce85d12"
+    }
+  ]
+}
