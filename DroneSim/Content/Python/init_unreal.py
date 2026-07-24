@@ -1,13 +1,7 @@
-"""프로젝트를 에디터에서 열 때 대용량 에셋을 백그라운드로 내려받는다.
+"""에디터 시작 시(UE가 자동 실행) 누락된 대용량 에셋을 백그라운드로 내려받는다.
 
-UE Python 플러그인은 시작 시 Content/Python/init_unreal.py 를 자동 실행한다.
-누락된 대용량 에셋(scripts/large_assets.json 목록)이 있으면 다운로드
-스크립트를 별도 프로세스로 띄워 에디터 시작을 막지 않는다. Slate post-tick
-콜백으로 완료만 폴링하다가, 다 받으면 애셋 레지스트리를 재스캔하고 알린다.
-
-SHA256 무결성 검증은 다운로드 시점에 PS 스크립트가 수행한다. 검증을 통과한
-파일만 최종 경로로 이동되므로, 여기서는 크기만으로 완료를 판단한다(매 시작마다
-1.92GB를 재해싱하지 않기 위함).
+SHA256 검증을 통과한 파일만 다운로드 스크립트가 최종 경로로 옮기므로, 완료
+판단은 크기만으로 한다.
 """
 from __future__ import annotations
 
@@ -59,7 +53,6 @@ def _launch_download(repo_root: str) -> Optional[subprocess.Popen[bytes]]:
 
 
 def _package_paths(dests: list[str]) -> list[str]:
-    """다운로드된 파일이 담긴 Content 하위 폴더를 /Game 패키지 경로로 변환한다."""
     content_dir = os.path.normpath(
         unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_content_dir())
     )
