@@ -1,0 +1,57 @@
+# Unreal Engine
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+DroneSim-Release/
+
+# Visual Studio
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.sln.DotSettings
+*.VC.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Build outputs
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+ENV/
+env/
+.venv
+
+# serena
+.serena
+eeg-server/logs/
+
+# 로컬 작업 문서(설계/계획 노트)는 버전관리하지 않음
+docs/
+
+# 대용량 위성 텍스처(1.92GB) — git 미포함, GitHub Release로 배포
+# 프로젝트를 에디터에서 열면 init_unreal.py 가 자동 다운로드한다.
+/DroneSim/Content/Maps/daejeon_satellite_z16.uasset
+# 다운로드 중 임시 파일
+*.part

@@ -1,0 +1,110 @@
+// Wire schema of the DroneSim <-> EEG server link.
+// Single source of truth: the Python side uses code generated from this file
+// (eeg_server/eeg_link_pb2.py); the UE side implements the same wire format by
+// hand in DroneSim/Source/DroneSim/Eeg/EegProto.cpp to avoid a protoc/libprotobuf
+// dependency in the engine build. Keep all three in sync.
+//
+// Framing over TCP: each message is prefixed with its byte length as a
+// 4-byte little-endian unsigned integer.
+//
+// Regenerate the Python module with:
+//   python -m grpc_tools.protoc -I proto --python_out=eeg_server proto/eeg_link.proto
+
+syntax = "proto3";
+
+package eeg;
+
+// One 100 ms block of simulated EEG samples (DroneSim -> server).
+message EegFrame {
+  int64 seq = 1;             // monotonic frame number for loss detection
+  double t_sent_ms = 2;      // Unix epoch ms when DroneSim sent the frame
+  int32 rate = 3;            // sample rate in Hz (250)
+  int32 channels = 4;        // electrode count (32)
+  repeated float data = 6;   // sample-major: data[sample * channels + channel]
+}
+
+// Confirmation that an inferred action reached the pawn (DroneSim -> server).
+message ControlAck {
+  int64 action_seq = 1;      // ActionResult.action_seq being confirmed
+  double t_control_ms = 2;   // Unix epoch ms when the movement input was applied
+}
+
+// Current drone physics parameters (DroneSim -> server), sent when the link
+// comes up and again after every edit in the in-game settings UI, so the
+// dashboard can display the active simulation setup. SI units throughout.
+message PhysicsSettings {
+  double mass_kg = 1;
+  double arm_length_m = 2;
+  double inertia_xx = 3;
+  double inertia_yy = 4;
+  double inertia_zz = 5;
+  double motor_time_constant_s = 6;
+  double thrust_coefficient = 7;    // kT, N/(rad/s)^2 at sea-level density
+  double torque_coefficient = 8;    // kQ, N*m/(rad/s)^2
+  double motor_max_rad_s = 9;
+  double rotor_inertia = 10;        // J_r, kg*m^2
+  double rotor_radius_m = 11;
+  double air_density = 12;          // kg/m^3
+  double drag_linear = 13;          // N/(m/s)
+  double drag_quadratic = 14;       // N/(m/s)^2
+  double gravity = 15;              // m/s^2
+  double ground_effect_strength = 16; // 0 (off) .. 1
+  double wind_x = 17;               // steady wind, m/s
+  double wind_y = 18;
+  double gust_intensity = 19;       // gust standard deviation, m/s
+  double max_tilt_deg = 20;
+  double max_speed_ms = 21;
+  int32 substep_hz = 22;            // RK4 integration rate
+  string preset_name = 23;          // airframe preset the values came from; CUSTOM if hand-edited
+  int32 motor_count = 24;           // rotor count of the airframe model: 4 quad, 6 hexa, 8 octo
+}
+
+// Everything DroneSim sends.
+message ClientMessage {
+  oneof msg {
+    EegFrame eeg = 1;
+    ControlAck ack = 2;
+    PhysicsSettings physics = 3;
+  }
+}
+
+// One classification result (server -> DroneSim).
+message ActionResult {
+  int64 action_seq = 1;         // monotonic, echoed back in ControlAck
+  int64 eeg_seq = 2;            // EegFrame.seq this result was inferred from
+  string action = 3;            // LEFT, RIGHT, FORWARD, BACKWARD or STOP
+  float confidence = 4;         // probability of the winning action, in [0, 1]
+
+  // Server-local duration (ms) spent inside classify_frame, NOT an absolute timestamp;
+  // one of the 3 pipeline segments (device->infer, infer processing, infer->control).
+  double infer_duration_ms = 5;
+
+  // Per-action probabilities in [0, 1] summing to ~1, in the fixed order
+  // FORWARD, BACKWARD, LEFT, RIGHT, STOP (config.ACTION_PROB_ORDER / EegConfig::ProbOrder).
+  repeated float action_probs = 7;
+
+  // Rolling evaluation metrics (MetricsStore.snapshot on the server); mirrors the
+  // dashboard KPI tiles so the in-game EEG HUD can show the same numbers.
+  // device->infer and infer->control are direct cross-clock subtractions (DroneSim's clock
+  // vs. the server's own clock) - correct as long as the two clocks read the same.
+  float latency_device_to_infer_mean_ms = 18;
+  float latency_device_to_infer_last_ms = 19;
+  float latency_device_to_infer_p95_ms = 20;
+  float latency_infer_to_control_mean_ms = 8;
+  float latency_infer_to_control_last_ms = 9;
+  float latency_infer_to_control_p95_ms = 10;
+  float latency_device_to_control_mean_ms = 11;
+  float latency_device_to_control_last_ms = 12;
+  float latency_device_to_control_p95_ms = 13;
+  float reliability_overall_percent = 14;   // min(frame_percent, ack_percent)
+  float reliability_frame_percent = 15;
+  int32 reliability_frames_lost = 16;
+  float reliability_ack_percent = 17;
+}
+
+// Everything the server sends.
+message ServerMessage {
+  oneof msg {
+    ActionResult action = 1;
+  }
+}

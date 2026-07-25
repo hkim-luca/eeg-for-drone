@@ -1,0 +1,184 @@
+#include "Scenario/DroneFlightController.h"
+#include "Misc/AutomationTest.h"
+#include "Scenario/DroneFlightModel.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+// note: names must not clash with DroneFlightModelTest.cpp - the unity build merges
+// the anonymous namespaces of both test files into one translation unit
+namespace
+{
+/** Settings with every disturbance disabled so the tests are deterministic */
+auto QuietControllerSettings() -> FDronePhysicsSettings
+{
+    FDronePhysicsSettings Settings;
+    Settings.GroundEffectStrength = 0.0;
+    Settings.WindXMS = 0.0;
+    Settings.WindYMS = 0.0;
+    Settings.GustIntensityMS = 0.0;
+    return Settings;
+}
+
+constexpr double CtrlStepS = 0.001; // 1 kHz, the default SubstepHz
+
+/** Runs the closed loop (controller + model) for the given duration */
+void RunClosedLoop(FDroneFlightController &Controller, FDroneFlightModel &Model, const FVector &MoveDirection,
+                   double DurationS)
+{
+    const int32 StepCount = static_cast<int32>(DurationS / CtrlStepS);
+    for (int32 Step = 0; Step < StepCount; ++Step)
+    {
+        double Commands[DroneMaxMotorCount] = {};
+        Controller.Compute(Model.GetState(), MoveDirection, CtrlStepS, Commands);
+        Model.Advance(CtrlStepS, Commands, -1000.0);
+    }
+}
+} // namespace
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDroneControllerHoverCommandTest, "DroneSim.Physics.Controller.HoverCommand",
+                                 EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+auto FDroneControllerHoverCommandTest::RunTest(const FString &Parameters) -> bool
+{
+    const FDronePhysicsSettings Settings = QuietControllerSettings();
+    FDroneFlightModel Model;
+    Model.SetSettings(Settings);
+    Model.Reset(FVector(0.0, 0.0, 5.0), 0.0);
+
+    // exactly at the hold point and at rest: the mixer must ask for pure hover speed
+    FDroneFlightController Controller;
+    Controller.Reset(Settings, /*HoldAltitudeM=*/5.0, /*HoldYawRad=*/0.0);
+
+    double Commands[DroneMaxMotorCount] = {};
+    Controller.Compute(Model.GetState(), FVector::ZeroVector, CtrlStepS, Commands);
+
+    const double Hover = Model.HoverMotorSpeed();
+    for (int32 Motor = 0; Motor < 4; ++Motor)
+    {
+        TestTrue(FString::Printf(TEXT("motor %d commanded near hover speed"), Motor),
+                 FMath::Abs(Commands[Motor] - Hover) < Hover * 0.01);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDroneControllerTakeoffTest, "DroneSim.Physics.Controller.TakeoffHold",
+                                 EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+auto FDroneControllerTakeoffTest::RunTest(const FString &Parameters) -> bool
+{
+    const FDronePhysicsSettings Settings = QuietControllerSettings();
+    FDroneFlightModel Model;
+    Model.SetSettings(Settings);
+    Model.Reset(FVector::ZeroVector, 0.0);
+
+    // start on the ground with stopped motors, hold point 1.5 m up: must climb and settle
+    FDroneFlightController Controller;
+    Controller.Reset(Settings, Settings.TakeoffAltitudeM, 0.0);
+    RunClosedLoop(Controller, Model, FVector::ZeroVector, 8.0);
+
+    const FDroneFlightState &State = Model.GetState();
+    TestTrue(TEXT("reached the takeoff altitude"), FMath::Abs(State.Position.Z - Settings.TakeoffAltitudeM) < 0.1);
+    TestTrue(TEXT("settled (slow)"), State.Velocity.Size() < 0.1);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDroneControllerCruiseTest, "DroneSim.Physics.Controller.ForwardCruise",
+                                 EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+auto FDroneControllerCruiseTest::RunTest(const FString &Parameters) -> bool
+{
+    FDronePhysicsSettings Settings = QuietControllerSettings();
+    Settings.MaxSpeedMS = 10.0;
+    FDroneFlightModel Model;
+    Model.SetSettings(Settings);
+    Model.Reset(FVector(0.0, 0.0, 5.0), 0.0);
+
+    FDroneFlightController Controller;
+    Controller.Reset(Settings, 5.0, 0.0);
+
+    // command forward (+X) and watch the tilt limit the whole way
+    const int32 StepCount = 6000; // 6 s
+    double MaxTiltSeen = 0.0;
+    for (int32 Step = 0; Step < StepCount; ++Step)
+    {
+        double Commands[DroneMaxMotorCount] = {};
+        Controller.Compute(Model.GetState(), FVector::ForwardVector, CtrlStepS, Commands);
+        Model.Advance(CtrlStepS, Commands, -1000.0);
+
+        const double CosTilt = Model.GetState().Attitude.RotateVector(FVector::UpVector).Z;
+        MaxTiltSeen = FMath::Max(MaxTiltSeen, FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(CosTilt, -1.0, 1.0))));
+    }
+
+    // the 10 m/s setpoint is NOT reachable: at the tilt limit the horizontal thrust is
+    // m*g*tan(MaxTilt) and drag balances it at the analytic steady-state speed below
+    // (c2*v^2 + c1*v = F). The cruise speed must sit on that physical limit instead.
+    const double MaxForce =
+        Settings.MassKg * Settings.GravityMS2 * FMath::Tan(FMath::DegreesToRadians(Settings.MaxTiltDeg));
+    const double SteadySpeed = (-Settings.DragLinear + FMath::Sqrt(Settings.DragLinear * Settings.DragLinear +
+                                                                   4.0 * Settings.DragQuadratic * MaxForce)) /
+                               (2.0 * Settings.DragQuadratic);
+
+    const FDroneFlightState &State = Model.GetState();
+    UE_LOG(LogTemp, Display, TEXT("ForwardCruise: vx=%.2f m/s, analytic drag-limited steady state=%.2f m/s"),
+           State.Velocity.X, SteadySpeed);
+    TestTrue(TEXT("cruise speed reaches the drag-limited steady state"), State.Velocity.X > 0.85 * SteadySpeed);
+    TestTrue(TEXT("cruise speed does not exceed the physical limit"), State.Velocity.X < 1.05 * SteadySpeed);
+    TestTrue(TEXT("no sideways drift"), FMath::Abs(State.Velocity.Y) < 0.5);
+    TestTrue(TEXT("altitude held while cruising"), FMath::Abs(State.Position.Z - 5.0) < 0.5);
+    TestTrue(TEXT("tilt limit respected"), MaxTiltSeen < Settings.MaxTiltDeg + 3.0);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDroneControllerTurnInPlaceTest, "DroneSim.Physics.Controller.TurnInPlace",
+                                 EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+auto FDroneControllerTurnInPlaceTest::RunTest(const FString &Parameters) -> bool
+{
+    const FDronePhysicsSettings Settings = QuietControllerSettings();
+    FDroneFlightModel Model;
+    Model.SetSettings(Settings);
+    Model.Reset(FVector(0.0, 0.0, 5.0), 0.0);
+
+    FDroneFlightController Controller;
+    Controller.Reset(Settings, /*HoldAltitudeM=*/5.0, /*HoldYawRad=*/0.0);
+
+    // yaw at 90 deg/s for 1.5 s ramps the setpoint to 135 deg, then 1.5 s with the
+    // command released must converge on that heading without translating
+    Controller.SetYawRateRadS(FMath::DegreesToRadians(90.0));
+    RunClosedLoop(Controller, Model, FVector::ZeroVector, 1.5);
+    Controller.SetYawRateRadS(0.0);
+    RunClosedLoop(Controller, Model, FVector::ZeroVector, 1.5);
+
+    const FDroneFlightState &State = Model.GetState();
+    const double YawDeg = State.Attitude.Rotator().Yaw;
+    UE_LOG(LogTemp, Display, TEXT("TurnInPlace: yaw=%.2f deg, drift=%.3f m, yaw rate=%.3f rad/s"), YawDeg,
+           State.Position.Size2D(), State.AngularVelocity.Z);
+    TestTrue(TEXT("heading reached the integrated setpoint (135 deg)"), FMath::Abs(YawDeg - 135.0) < 3.0);
+    TestTrue(TEXT("turned in place (no horizontal drift)"), State.Position.Size2D() < 0.5);
+    TestTrue(TEXT("altitude held while turning"), FMath::Abs(State.Position.Z - 5.0) < 0.5);
+    TestTrue(TEXT("turn finished (yaw rate died down)"), FMath::Abs(State.AngularVelocity.Z) < 0.05);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDroneControllerStrafeHoldsYawTest, "DroneSim.Physics.Controller.StrafeHoldsYaw",
+                                 EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+auto FDroneControllerStrafeHoldsYawTest::RunTest(const FString &Parameters) -> bool
+{
+    const FDronePhysicsSettings Settings = QuietControllerSettings();
+    FDroneFlightModel Model;
+    Model.SetSettings(Settings);
+    Model.Reset(FVector(0.0, 0.0, 5.0), 0.0);
+
+    FDroneFlightController Controller;
+    Controller.Reset(Settings, /*HoldAltitudeM=*/5.0, /*HoldYawRad=*/0.0);
+
+    // strafe right (+Y) without any yaw command: the drone must translate sideways
+    // while its heading stays where Reset() put it
+    RunClosedLoop(Controller, Model, FVector::RightVector, 3.0);
+
+    const FDroneFlightState &State = Model.GetState();
+    UE_LOG(LogTemp, Display, TEXT("StrafeHoldsYaw: vy=%.2f m/s, yaw=%.2f deg"), State.Velocity.Y,
+           State.Attitude.Rotator().Yaw);
+    TestTrue(TEXT("strafing sideways"), State.Velocity.Y > 2.0);
+    TestTrue(TEXT("heading unchanged while strafing"), FMath::Abs(State.Attitude.Rotator().Yaw) < 2.0);
+    TestTrue(TEXT("altitude held while strafing"), FMath::Abs(State.Position.Z - 5.0) < 0.5);
+    return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

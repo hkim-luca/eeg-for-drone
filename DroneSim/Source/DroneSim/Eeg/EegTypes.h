@@ -1,0 +1,133 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "ScenarioTypes.h"
+
+/** Compile-time layout of the simulated EEG device and of the frames sent to the EEG server.
+ *  The channel-group demo rule encoded here must match eeg-server/eeg_server/config.py. */
+namespace EegConfig
+{
+/** Number of electrodes on the simulated EEG device */
+inline constexpr int32 ChannelCount = 32;
+
+/** International 10-20/10-10 electrode names for the 32 simulated channels, in the same
+ *  order as ChannelCount / GroupStartChannel. Approximates a standard actiCAP/EasyCap
+ *  32-channel montage (matches MNE's easycap-M1 template channel order); the simulated
+ *  device has no real montage, so this is a display label only. */
+inline constexpr const TCHAR *ChannelNames[ChannelCount] = {
+    TEXT("Fp1"), TEXT("Fp2"), TEXT("F7"),  TEXT("F3"),  TEXT("Fz"), TEXT("F4"),   TEXT("F8"),  TEXT("FC5"),
+    TEXT("FC1"), TEXT("FC2"), TEXT("FC6"), TEXT("T7"),  TEXT("C3"), TEXT("Cz"),   TEXT("C4"),  TEXT("T8"),
+    TEXT("CP5"), TEXT("CP1"), TEXT("CP2"), TEXT("CP6"), TEXT("P7"), TEXT("P3"),   TEXT("Pz"),  TEXT("P4"),
+    TEXT("P8"),  TEXT("PO9"), TEXT("O1"),  TEXT("Oz"),  TEXT("O2"), TEXT("PO10"), TEXT("AF7"), TEXT("AF8"),
+};
+static_assert(UE_ARRAY_COUNT(ChannelNames) == ChannelCount, "ChannelNames must have one entry per channel");
+
+/** Samples generated per second per channel */
+inline constexpr int32 SampleRateHz = 250;
+
+/** Samples per channel bundled into one network frame (100 ms of signal) */
+inline constexpr int32 SamplesPerFrame = 25;
+
+/** Samples per channel kept for the on-screen electrode graphs (2 s window) */
+inline constexpr int32 GraphWindowSamples = SampleRateHz * 2;
+
+/** First channel of the group whose amplitude is boosted for the action; INDEX_NONE for Stop.
+ *  Groups are GroupChannelCount channels wide and separated so the dummy classifier can
+ *  tell them apart: FORWARD=0..5, LEFT=8..13, RIGHT=18..23, BACKWARD=26..31. */
+inline constexpr int32 GroupChannelCount = 6;
+
+inline constexpr auto GroupStartChannel(EScenarioAction Action) -> int32
+{
+    switch (Action)
+    {
+    case EScenarioAction::Forward:
+        return 0;
+    case EScenarioAction::Left:
+        return 8;
+    case EScenarioAction::Right:
+        return 18;
+    case EScenarioAction::Backward:
+        return 26;
+    case EScenarioAction::Stop:
+        return INDEX_NONE;
+    }
+    return INDEX_NONE;
+}
+
+/** Wire order of ActionResult.action_probs; must match config.ACTION_PROB_ORDER on the server */
+inline constexpr EScenarioAction ProbOrder[] = {EScenarioAction::Forward, EScenarioAction::Backward,
+                                                EScenarioAction::Left, EScenarioAction::Right, EScenarioAction::Stop};
+
+inline constexpr int32 ProbCount = 5;
+
+/** Index of one action inside ActionProbs (the ProbOrder position); INDEX_NONE if absent */
+inline constexpr auto ProbIndex(EScenarioAction Action) -> int32
+{
+    for (int32 Index = 0; Index < ProbCount; ++Index)
+    {
+        if (ProbOrder[Index] == Action)
+        {
+            return Index;
+        }
+    }
+    return INDEX_NONE;
+}
+} // namespace EegConfig
+
+/** One 100 ms block of simulated EEG ready to be sent to the EEG server */
+struct FEegFrame
+{
+    /** Monotonic frame number, used by the server to detect dropped frames */
+    int64 Seq = 0;
+
+    /** Sample-major data in microvolts: Samples[SampleIndex * ChannelCount + Channel] */
+    TArray<float> Samples;
+};
+
+/** Rolling evaluation metrics, mirrored from the dashboard KPI tiles
+ *  (eeg_server MetricsStore.snapshot) so the in-game EEG HUD shows the same numbers */
+struct FEegMetrics
+{
+    float LatencyDeviceToInferMeanMs = 0.0f;
+    float LatencyDeviceToInferLastMs = 0.0f;
+    float LatencyDeviceToInferP95Ms = 0.0f;
+    float LatencyInferToControlMeanMs = 0.0f;
+    float LatencyInferToControlLastMs = 0.0f;
+    float LatencyInferToControlP95Ms = 0.0f;
+    float LatencyDeviceToControlMeanMs = 0.0f;
+    float LatencyDeviceToControlLastMs = 0.0f;
+    float LatencyDeviceToControlP95Ms = 0.0f;
+    float ReliabilityOverallPercent = 0.0f;
+    float ReliabilityFramePercent = 0.0f;
+    int32 ReliabilityFramesLost = 0;
+    float ReliabilityAckPercent = 0.0f;
+
+    /** Server-only duration (ms) spent classifying this frame; copied in from the enclosing
+     *  FEegActionResult.InferDurationMs so the HUD's pipeline chart has it alongside the rest
+     *  of the metrics history */
+    float InferDurationMs = 0.0f;
+};
+
+/** One classification result received from the EEG server */
+struct FEegActionResult
+{
+    /** Monotonic number assigned by the server; echoed back in the control ack */
+    int64 ActionSeq = 0;
+
+    /** Action the server inferred from the EEG frames */
+    EScenarioAction Action = EScenarioAction::Stop;
+
+    /** Classifier confidence in [0, 1]; informational only */
+    float Confidence = 0.0f;
+
+    /** Server-local duration (ms) spent classifying the frame; NOT an absolute timestamp
+     *  (the server may run on a different, unsynchronized-clock machine), informational only
+     *  on this side - the server uses it to derive Metrics.LatencyInferToControl* */
+    double InferDurationMs = 0.0;
+
+    /** Per-action probabilities in [0, 1], ordered by EegConfig::ProbOrder */
+    float ActionProbs[EegConfig::ProbCount] = {};
+
+    /** Rolling latency/reliability metrics sent alongside this result */
+    FEegMetrics Metrics;
+};
