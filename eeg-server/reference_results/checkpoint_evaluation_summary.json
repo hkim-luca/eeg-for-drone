@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "evaluation_mode": "offline_transductive_target_label_free_loso",
+  "checkpoint_count": 9,
+  "mean_ra_only_accuracy": 0.6722608024691358,
+  "mean_ra_imtta_accuracy": 0.714699074074074,
+  "std_ra_imtta_accuracy_sample": 0.11122295260922628,
+  "mean_tta_gain": 0.04243827160493829,
+  "submission_threshold": 0.69,
+  "passes_69_percent": true,
+  "tta_steps": 5,
+  "tta_lr": 0.001,
+  "tta_diversity_weight": 1.0,
+  "seed": 42,
+  "target_trials_per_subject": 576,
+  "target_labels_used_in_alignment_or_tta": false,
+  "target_labels_used_for_final_metric_only": true,
+  "elapsed_seconds": 158.9033124446869,
+  "python": "3.12.13 | packaged by Anaconda, Inc. | (main, Jul  9 2026, 14:26:47) [MSC v.1942 64 bit (AMD64)]",
+  "torch": "2.7.1+cu128",
+  "device": "cuda",
+  "gpu": "NVIDIA GeForce RTX 5070 Ti"
+}

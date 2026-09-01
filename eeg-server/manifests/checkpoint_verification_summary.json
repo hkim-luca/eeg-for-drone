@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "checkpoint_count": 9,
+  "verified_count": 9,
+  "targets": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A05",
+    "A06",
+    "A07",
+    "A08",
+    "A09"
+  ],
+  "manifest": "C:\\Users\\User\\code\\bci_eegnet_project\\outputs_loso_ra_imtta_checkpoints_seed42\\manifests\\checkpoint_manifest.csv",
+  "hash_file": "C:\\Users\\User\\code\\bci_eegnet_project\\outputs_loso_ra_imtta_checkpoints_seed42\\manifests\\checkpoint_hashes.sha256",
+  "errors": [],
+  "torch_version": "2.7.1+cu128",
+  "python_version": "3.12.13 | packaged by Anaconda, Inc. | (main, Jul  9 2026, 14:26:47) [MSC v.1942 64 bit (AMD64)]"
+}
