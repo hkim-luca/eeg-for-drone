@@ -1,0 +1,9 @@
+python=3.12.13 | packaged by Anaconda, Inc. | (main, Jul  9 2026, 14:26:47) [MSC v.1942 64 bit (AMD64)]
+torch=2.7.1+cu128
+cuda=12.8
+mne=1.12.1
+numpy=2.5.2
+scipy=1.18.0
+pandas=3.0.5
+scikit-learn=1.5.2
+pyriemann=0.9
