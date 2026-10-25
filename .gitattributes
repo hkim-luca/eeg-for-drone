@@ -1,0 +1,8 @@
+DroneSim/Content/Environment/** filter=lfs diff=lfs merge=lfs -text
+DroneSim/Content/Maps/Daejeon_PCG_Work.umap filter=lfs diff=lfs merge=lfs -text
+DroneSim/Content/Megaplant_Library/Tree_Aleppo_Pine/** filter=lfs diff=lfs merge=lfs -text
+DroneSim/Content/Megaplant_Library/Tree_Black_Alder/** filter=lfs diff=lfs merge=lfs -text
+DroneSim/Content/PN_GrassLibrary/Materials/** filter=lfs diff=lfs merge=lfs -text
+DroneSim/Content/PN_GrassLibrary/Meshes/** filter=lfs diff=lfs merge=lfs -text
+DroneSim/Content/PN_GrassLibrary/Textures/** filter=lfs diff=lfs merge=lfs -text
+DroneSim/Content/WaterMaterials/Textures/T_Water_Normal_Subtle.uasset filter=lfs diff=lfs merge=lfs -text
