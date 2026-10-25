@@ -34,7 +34,6 @@ python -m eeg_server
 python tests/test_protocol.py        # JSON wire round-trip
 python tests/test_model_runtime.py   # 윈도우 버퍼 + MI→동작 매핑 + STOP 폴백
 python tests/test_metrics.py
-python tools/fake_dronesim.py --seconds 10   # 서버 실행 후, DroneSim 대역 E2E
 ```
 
 ## 프로토콜 (JSON)

@@ -22,7 +22,7 @@ CHANNEL_COUNT: Final[int] = 22
 SAMPLE_RATE_HZ: Final[int] = 250
 
 #: Samples per channel in one network frame (100 ms of signal); must match
-#: EegConfig::SamplesPerFrame in EegTypes.h and fake_dronesim.
+#: EegConfig::SamplesPerFrame in EegTypes.h.
 SAMPLES_PER_FRAME: Final[int] = 25
 
 #: BCI Competition IV-2a 22-electrode montage, in the AI model's input-row order
