@@ -92,9 +92,10 @@ class UEegRunnerComponent : public UActorComponent
     UPROPERTY(EditAnywhere, Category = "EEG")
     int32 ServerPort = 9800;
 
-    /** OpenBCI Cyton dongle serial port (e.g. "COM3") passed to BrainFlow */
+    /** OpenBCI Cyton dongle serial port (e.g. "COM3") passed to BrainFlow. Leave empty (or
+     *  "auto") to auto-detect the FTDI serial port on Windows. */
     UPROPERTY(EditAnywhere, Category = "EEG")
-    FString OpenBciSerialPort = TEXT("COM3");
+    FString OpenBciSerialPort;
 
     /** Optional override for the board-channel -> electrode map; empty uses
      *  <ProjectDir>/../mappings/openbci_to_sim.json */

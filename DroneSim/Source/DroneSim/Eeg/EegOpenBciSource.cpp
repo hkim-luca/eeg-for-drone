@@ -44,6 +44,62 @@ auto ModelIndexForName(const FString &Name) -> int32
 }
 } // namespace
 
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <windows.h>
+namespace
+{
+/** Returns the COM port of the first FTDI serial device (OpenBCI Cyton dongle), or empty.
+ *  FTDI's VCP driver registers under HKLM\HARDWARE\DEVICEMAP\SERIALCOMM with a value name
+ *  like "\Device\VCP0" whose data is the "COMx" string. */
+auto DetectFtdiSerialPort() -> FString
+{
+    HKEY Key = nullptr;
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"HARDWARE\\DEVICEMAP\\SERIALCOMM", 0, KEY_READ, &Key) != ERROR_SUCCESS)
+    {
+        return FString();
+    }
+
+    FString Port;
+    for (DWORD Index = 0;; ++Index)
+    {
+        wchar_t Name[256];
+        DWORD NameLen = UE_ARRAY_COUNT(Name);
+        BYTE Data[256];
+        DWORD DataLen = sizeof(Data);
+        DWORD Type = 0;
+        const LONG Result = RegEnumValueW(Key, Index, Name, &NameLen, nullptr, &Type, Data, &DataLen);
+        if (Result != ERROR_SUCCESS)
+        {
+            break; // ERROR_NO_MORE_ITEMS or an error
+        }
+        if (Type != REG_SZ)
+        {
+            continue;
+        }
+        const FString ValueName(Name);
+        if (ValueName.Contains(TEXT("VCP"))) // FTDI virtual COM port
+        {
+            Port = FString(reinterpret_cast<const wchar_t *>(Data));
+            break;
+        }
+    }
+
+    RegCloseKey(Key);
+    return Port;
+}
+} // namespace
+#include "Windows/HideWindowsPlatformTypes.h"
+#else
+namespace
+{
+auto DetectFtdiSerialPort() -> FString
+{
+    return FString();
+}
+} // namespace
+#endif
+
 void FEegOpenBciSource::BuildChannelMap(const FString &MappingFilePath)
 {
     const FString Path = MappingFilePath.IsEmpty()
@@ -130,15 +186,46 @@ void FEegOpenBciSource::Start(const FString &InSerialPort, const FString &Mappin
 void FEegOpenBciSource::TryConnect()
 {
 #if WITH_BRAINFLOW
+    // one-time: route BrainFlow's internal diagnostics to Saved/Logs/brainflow.log so a
+    // failing prepare/start_stream reveals the underlying reason
+    static bool bBrainFlowLoggerReady = false;
+    if (!bBrainFlowLoggerReady)
+    {
+        bBrainFlowLoggerReady = true;
+        try
+        {
+            BoardShim::set_log_file(TCHAR_TO_UTF8(*(FPaths::ProjectLogDir() / TEXT("brainflow.log"))));
+            BoardShim::enable_dev_board_logger();
+        }
+        catch (const BrainFlowException &)
+        {
+        }
+    }
+
+    FString Port = SerialPort;
+    if (Port.IsEmpty() || Port.Equals(TEXT("auto"), ESearchCase::IgnoreCase))
+    {
+        Port = DetectFtdiSerialPort();
+        if (Port.IsEmpty())
+        {
+            FScenarioLog::Error(FString::Printf(
+                TEXT("OpenBCI serial port auto-detect found no FTDI device; set OpenBciSerialPort. Retrying in %.0fs"),
+                RetryInterval));
+            bStreaming = false;
+            return;
+        }
+        FScenarioLog::Info(FString::Printf(TEXT("OpenBCI serial port auto-detected: %s"), *Port));
+    }
+
     try
     {
         const int BoardId = BoardIdForChannels(BoardChannelCount);
         BrainFlowInputParams Params;
-        Params.serial_port = TCHAR_TO_UTF8(*SerialPort);
+        Params.serial_port = TCHAR_TO_UTF8(*Port);
         auto *Board = new BoardShim(BoardId, Params);
+        BoardHandle = Board; // set before prepare so a failed prepare/start still gets released
         Board->prepare_session();
         Board->start_stream();
-        BoardHandle = Board;
 
         EegChannelRows.Reset();
         for (int Row : BoardShim::get_eeg_channels(BoardId))
@@ -147,12 +234,12 @@ void FEegOpenBciSource::TryConnect()
         }
         bStreaming = true;
         FScenarioLog::Info(FString::Printf(TEXT("OpenBCI streaming on %s (board %d): %d EEG channels @ %dHz"),
-                                           *SerialPort, BoardId, EegChannelRows.Num(), EegConfig::SampleRateHz));
+                                           *Port, BoardId, EegChannelRows.Num(), EegConfig::SampleRateHz));
     }
     catch (const BrainFlowException &Error)
     {
         FScenarioLog::Error(FString::Printf(TEXT("OpenBCI connect failed on %s: %hs (code %d); retrying in %.0fs"),
-                                            *SerialPort, Error.what(), Error.exit_code, RetryInterval));
+                                            *Port, Error.what(), Error.exit_code, RetryInterval));
         ReleaseBoard();
         bStreaming = false;
     }
@@ -169,18 +256,16 @@ void FEegOpenBciSource::ReleaseBoard()
     if (BoardHandle != nullptr)
     {
         auto *Board = static_cast<BoardShim *>(BoardHandle);
+        // release_session unregisters the board in BrainFlow's process-wide registry even when
+        // prepare/start only partly succeeded; skipping it leaks the registration and the next
+        // attempt fails with ANOTHER_BOARD_IS_CREATED (code 16). It also stops any running stream,
+        // so no separate stop_stream is needed. Swallow errors (e.g. board was never prepared).
         try
         {
-            if (Board->is_prepared())
-            {
-                Board->stop_stream();
-                Board->release_session();
-            }
+            Board->release_session();
         }
-        catch (const BrainFlowException &Error)
+        catch (const BrainFlowException &)
         {
-            FScenarioLog::Error(FString::Printf(TEXT("OpenBCI release error: %hs (code %d)"), Error.what(),
-                                                Error.exit_code));
         }
         delete Board;
         BoardHandle = nullptr;
