@@ -1,0 +1,7 @@
+--- a/third_party/DSPFilters/include/DspFilters/Common.h
++++ b/third_party/DSPFilters/include/DspFilters/Common.h
+@@ -60,3 +60,3 @@
+ #ifdef _MSC_VER
+-namespace tr1 = std::tr1;
++namespace tr1 = std;
+ #else

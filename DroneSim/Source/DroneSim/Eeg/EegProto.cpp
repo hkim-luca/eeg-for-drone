@@ -1,270 +1,63 @@
 #include "EegProto.h"
 #include "DronePhysicsSettings.h"
 
+#include "Dom/JsonObject.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
+
+// JSON wire-format codec for the EEG link, implementing the message shapes in
+// eeg-server/proto/eeg_link.proto (now a schema reference; the server (de)serializes the
+// same JSON). Payloads are UTF-8 JSON objects exchanged behind a 4-byte little-endian
+// length prefix, which FEegClient adds and strips (so this file deals in bare payloads).
+
 namespace
 {
-// proto3 wire types
-constexpr uint32 WireVarint = 0;
-constexpr uint32 WireFixed64 = 1;
-constexpr uint32 WireLengthDelimited = 2;
-constexpr uint32 WireFixed32 = 5;
-
-void AppendVarint(TArray<uint8> &Out, uint64 Value)
+/** Encodes an FString as bare UTF-8 bytes (no length prefix, no null terminator) */
+auto Utf8Bytes(const FString &Text) -> TArray<uint8>
 {
-    do
-    {
-        uint8 Byte = Value & 0x7F;
-        Value >>= 7;
-        if (Value != 0)
-        {
-            Byte |= 0x80;
-        }
-        Out.Add(Byte);
-    } while (Value != 0);
-}
-
-void AppendTag(TArray<uint8> &Out, uint32 FieldNumber, uint32 WireType)
-{
-    AppendVarint(Out, (static_cast<uint64>(FieldNumber) << 3) | WireType);
-}
-
-/** Little-endian raw bytes; all supported platforms are little-endian */
-template <typename T> void AppendRaw(TArray<uint8> &Out, T Value)
-{
-    const int32 Offset = Out.Num();
-    Out.AddUninitialized(sizeof(T));
-    FMemory::Memcpy(Out.GetData() + Offset, &Value, sizeof(T));
-}
-
-/** proto3 omits fields at their default value, hence the zero checks below */
-void AppendVarintField(TArray<uint8> &Out, uint32 FieldNumber, uint64 Value)
-{
-    if (Value != 0)
-    {
-        AppendTag(Out, FieldNumber, WireVarint);
-        AppendVarint(Out, Value);
-    }
-}
-
-void AppendDoubleField(TArray<uint8> &Out, uint32 FieldNumber, double Value)
-{
-    if (Value != 0.0)
-    {
-        AppendTag(Out, FieldNumber, WireFixed64);
-        AppendRaw(Out, Value);
-    }
-}
-
-void AppendStringField(TArray<uint8> &Out, uint32 FieldNumber, const FString &Value)
-{
-    if (!Value.IsEmpty())
-    {
-        const FTCHARToUTF8 Utf8(*Value);
-        AppendTag(Out, FieldNumber, WireLengthDelimited);
-        AppendVarint(Out, static_cast<uint64>(Utf8.Length()));
-        Out.Append(reinterpret_cast<const uint8 *>(Utf8.Get()), Utf8.Length());
-    }
-}
-
-void AppendPackedFloatField(TArray<uint8> &Out, uint32 FieldNumber, const TArray<float> &Values)
-{
-    if (!Values.IsEmpty())
-    {
-        AppendTag(Out, FieldNumber, WireLengthDelimited);
-        AppendVarint(Out, static_cast<uint64>(Values.Num()) * sizeof(float));
-        Out.Append(reinterpret_cast<const uint8 *>(Values.GetData()), Values.Num() * sizeof(float));
-    }
-}
-
-/** Wraps an encoded sub-message as one oneof field of the envelope message */
-auto WrapAsEnvelope(uint32 FieldNumber, const TArray<uint8> &Inner) -> TArray<uint8>
-{
+    const FTCHARToUTF8 Utf8(*Text);
     TArray<uint8> Out;
-    Out.Reserve(Inner.Num() + 8);
-    AppendTag(Out, FieldNumber, WireLengthDelimited);
-    AppendVarint(Out, static_cast<uint64>(Inner.Num()));
-    Out.Append(Inner);
+    Out.Append(reinterpret_cast<const uint8 *>(Utf8.Get()), Utf8.Length());
     return Out;
 }
 
-/** Sequential reader over a received payload; all methods return false on malformed input */
-struct FProtoReader
+/** Decodes bare UTF-8 bytes back to an FString */
+auto Utf8ToString(TConstArrayView<uint8> Bytes) -> FString
 {
-    const uint8 *Data = nullptr;
-    int32 Size = 0;
-    int32 Pos = 0;
+    const FUTF8ToTCHAR Converted(reinterpret_cast<const ANSICHAR *>(Bytes.GetData()), Bytes.Num());
+    return FString::ConstructFromPtrSize(Converted.Get(), Converted.Length());
+}
 
-    auto AtEnd() const -> bool
-    {
-        return Pos >= Size;
-    }
-
-    auto ReadVarint(uint64 &OutValue) -> bool
-    {
-        OutValue = 0;
-        for (int32 Shift = 0; Shift < 64 && Pos < Size; Shift += 7)
-        {
-            const uint8 Byte = Data[Pos++];
-            OutValue |= static_cast<uint64>(Byte & 0x7F) << Shift;
-            if ((Byte & 0x80) == 0)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    template <typename T> auto ReadRaw(T &OutValue) -> bool
-    {
-        if (Pos + static_cast<int32>(sizeof(T)) > Size)
-        {
-            return false;
-        }
-        FMemory::Memcpy(&OutValue, Data + Pos, sizeof(T));
-        Pos += sizeof(T);
-        return true;
-    }
-
-    auto ReadLengthDelimited(TConstArrayView<uint8> &OutView) -> bool
-    {
-        uint64 Length = 0;
-        if (!ReadVarint(Length) || Pos + static_cast<int64>(Length) > Size)
-        {
-            return false;
-        }
-        OutView = TConstArrayView<uint8>(Data + Pos, static_cast<int32>(Length));
-        Pos += static_cast<int32>(Length);
-        return true;
-    }
-
-    /** Skips one field of the given wire type, tolerating unknown fields */
-    auto SkipField(uint32 WireType) -> bool
-    {
-        uint64 Unused = 0;
-        TConstArrayView<uint8> UnusedView;
-        switch (WireType)
-        {
-        case WireVarint:
-            return ReadVarint(Unused);
-        case WireFixed64:
-            double UnusedDouble;
-            return ReadRaw(UnusedDouble);
-        case WireLengthDelimited:
-            return ReadLengthDelimited(UnusedView);
-        case WireFixed32:
-            float UnusedFloat;
-            return ReadRaw(UnusedFloat);
-        default:
-            return false;
-        }
-    }
-};
-
-/** Parses an ActionResult sub-message (see eeg_link.proto for the field numbers) */
-auto ParseActionResult(TConstArrayView<uint8> Bytes, FEegActionResult &OutResult) -> bool
+/** Serializes a JSON object to a framed-ready UTF-8 byte payload (condensed, no whitespace) */
+auto SerializeObject(const TSharedRef<FJsonObject> &Object) -> TArray<uint8>
 {
-    FProtoReader Reader{Bytes.GetData(), Bytes.Num()};
-    FString ActionLabel;
+    FString Text;
+    const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
+        TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text);
+    FJsonSerializer::Serialize(Object, Writer);
+    return Utf8Bytes(Text);
+}
 
-    while (!Reader.AtEnd())
+/** Appends a float array as a JSON number array field */
+void SetFloatArrayField(const TSharedRef<FJsonObject> &Object, const TCHAR *Field, const TArray<float> &Values)
+{
+    TArray<TSharedPtr<FJsonValue>> Array;
+    Array.Reserve(Values.Num());
+    for (const float Value : Values)
     {
-        uint64 Tag = 0;
-        if (!Reader.ReadVarint(Tag))
-        {
-            return false;
-        }
-        const uint32 FieldNumber = static_cast<uint32>(Tag >> 3);
-        const uint32 WireType = static_cast<uint32>(Tag & 0x7);
-        bool bOk = true;
-
-        switch (FieldNumber)
-        {
-        case 1: { // action_seq
-            uint64 Value = 0;
-            bOk = Reader.ReadVarint(Value);
-            OutResult.ActionSeq = static_cast<int64>(Value);
-            break;
-        }
-        case 3: { // action
-            TConstArrayView<uint8> View;
-            bOk = Reader.ReadLengthDelimited(View);
-            if (bOk)
-            {
-                const FUTF8ToTCHAR Converted(reinterpret_cast<const ANSICHAR *>(View.GetData()), View.Num());
-                ActionLabel = FString::ConstructFromPtrSize(Converted.Get(), Converted.Length());
-            }
-            break;
-        }
-        case 4: // confidence
-            bOk = Reader.ReadRaw(OutResult.Confidence);
-            break;
-        case 5: // infer_duration_ms
-            bOk = Reader.ReadRaw(OutResult.InferDurationMs);
-            break;
-        case 7: { // action_probs (packed floats in EegConfig::ProbOrder)
-            TConstArrayView<uint8> View;
-            bOk = Reader.ReadLengthDelimited(View) && View.Num() % sizeof(float) == 0;
-            if (bOk)
-            {
-                const int32 Count = FMath::Min(static_cast<int32>(View.Num() / sizeof(float)), EegConfig::ProbCount);
-                FMemory::Memcpy(OutResult.ActionProbs, View.GetData(), Count * sizeof(float));
-            }
-            break;
-        }
-        case 8: // latency_infer_to_control_mean_ms
-            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyInferToControlMeanMs);
-            break;
-        case 9: // latency_infer_to_control_last_ms
-            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyInferToControlLastMs);
-            break;
-        case 10: // latency_infer_to_control_p95_ms
-            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyInferToControlP95Ms);
-            break;
-        case 11: // latency_device_to_control_mean_ms
-            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToControlMeanMs);
-            break;
-        case 12: // latency_device_to_control_last_ms
-            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToControlLastMs);
-            break;
-        case 13: // latency_device_to_control_p95_ms
-            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToControlP95Ms);
-            break;
-        case 14: // reliability_overall_percent
-            bOk = Reader.ReadRaw(OutResult.Metrics.ReliabilityOverallPercent);
-            break;
-        case 15: // reliability_frame_percent
-            bOk = Reader.ReadRaw(OutResult.Metrics.ReliabilityFramePercent);
-            break;
-        case 16: { // reliability_frames_lost
-            uint64 Value = 0;
-            bOk = Reader.ReadVarint(Value);
-            OutResult.Metrics.ReliabilityFramesLost = static_cast<int32>(Value);
-            break;
-        }
-        case 17: // reliability_ack_percent
-            bOk = Reader.ReadRaw(OutResult.Metrics.ReliabilityAckPercent);
-            break;
-        case 18: // latency_device_to_infer_mean_ms
-            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToInferMeanMs);
-            break;
-        case 19: // latency_device_to_infer_last_ms
-            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToInferLastMs);
-            break;
-        case 20: // latency_device_to_infer_p95_ms
-            bOk = Reader.ReadRaw(OutResult.Metrics.LatencyDeviceToInferP95Ms);
-            break;
-        default: // eeg_seq and future fields
-            bOk = Reader.SkipField(WireType);
-            break;
-        }
-
-        if (!bOk)
-        {
-            return false;
-        }
+        Array.Add(MakeShared<FJsonValueNumber>(Value));
     }
+    Object->SetArrayField(Field, Array);
+}
 
-    return ParseScenarioActionName(ActionLabel, OutResult.Action);
+/** Reads a numeric field as double, returning 0 when absent */
+auto GetNumber(const TSharedPtr<FJsonObject> &Object, const TCHAR *Field) -> double
+{
+    double Value = 0.0;
+    Object->TryGetNumberField(Field, Value);
+    return Value;
 }
 } // namespace
 
@@ -273,81 +66,109 @@ namespace EegProto
 
 auto EncodeEegFrame(const FEegFrame &Frame, double SentMs) -> TArray<uint8>
 {
-    TArray<uint8> Inner;
-    Inner.Reserve(Frame.Samples.Num() * sizeof(float) + 64);
-    AppendVarintField(Inner, 1, static_cast<uint64>(Frame.Seq));
-    AppendDoubleField(Inner, 2, SentMs);
-    AppendVarintField(Inner, 3, EegConfig::SampleRateHz);
-    AppendVarintField(Inner, 4, EegConfig::ChannelCount);
-    AppendPackedFloatField(Inner, 6, Frame.Samples);
-    return WrapAsEnvelope(1, Inner); // ClientMessage.eeg
+    const TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+    Object->SetStringField(TEXT("type"), TEXT("eeg"));
+    Object->SetNumberField(TEXT("seq"), static_cast<double>(Frame.Seq));
+    Object->SetNumberField(TEXT("t_sent_ms"), SentMs);
+    Object->SetNumberField(TEXT("rate"), EegConfig::SampleRateHz);
+    Object->SetNumberField(TEXT("channels"), EegConfig::ChannelCount);
+    SetFloatArrayField(Object, TEXT("data"), Frame.Samples);
+    return SerializeObject(Object);
 }
 
 auto EncodePhysicsSettings(const FDronePhysicsSettings &Settings, const FString &PresetName) -> TArray<uint8>
 {
-    // field numbers follow message PhysicsSettings in eeg_link.proto
-    TArray<uint8> Inner;
-    Inner.Reserve(22 * 10);
-    AppendDoubleField(Inner, 1, Settings.MassKg);
-    AppendDoubleField(Inner, 2, Settings.ArmLengthM);
-    AppendDoubleField(Inner, 3, Settings.InertiaXX);
-    AppendDoubleField(Inner, 4, Settings.InertiaYY);
-    AppendDoubleField(Inner, 5, Settings.InertiaZZ);
-    AppendDoubleField(Inner, 6, Settings.MotorTimeConstantS);
-    AppendDoubleField(Inner, 7, Settings.ThrustCoefficient);
-    AppendDoubleField(Inner, 8, Settings.TorqueCoefficient);
-    AppendDoubleField(Inner, 9, Settings.MotorMaxRadS);
-    AppendDoubleField(Inner, 10, Settings.RotorInertiaKgM2);
-    AppendDoubleField(Inner, 11, Settings.RotorRadiusM);
-    AppendDoubleField(Inner, 12, Settings.AirDensity);
-    AppendDoubleField(Inner, 13, Settings.DragLinear);
-    AppendDoubleField(Inner, 14, Settings.DragQuadratic);
-    AppendDoubleField(Inner, 15, Settings.GravityMS2);
-    AppendDoubleField(Inner, 16, Settings.GroundEffectStrength);
-    AppendDoubleField(Inner, 17, Settings.WindXMS);
-    AppendDoubleField(Inner, 18, Settings.WindYMS);
-    AppendDoubleField(Inner, 19, Settings.GustIntensityMS);
-    AppendDoubleField(Inner, 20, Settings.MaxTiltDeg);
-    AppendDoubleField(Inner, 21, Settings.MaxSpeedMS);
-    AppendVarintField(Inner, 22, static_cast<uint64>(Settings.SubstepHz));
-    AppendStringField(Inner, 23, PresetName);
-    AppendVarintField(Inner, 24, static_cast<uint64>(Settings.MotorCount));
-    return WrapAsEnvelope(3, Inner); // ClientMessage.physics
+    // field names follow message PhysicsSettings in eeg_link.proto
+    const TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+    Object->SetStringField(TEXT("type"), TEXT("physics"));
+    Object->SetNumberField(TEXT("mass_kg"), Settings.MassKg);
+    Object->SetNumberField(TEXT("arm_length_m"), Settings.ArmLengthM);
+    Object->SetNumberField(TEXT("inertia_xx"), Settings.InertiaXX);
+    Object->SetNumberField(TEXT("inertia_yy"), Settings.InertiaYY);
+    Object->SetNumberField(TEXT("inertia_zz"), Settings.InertiaZZ);
+    Object->SetNumberField(TEXT("motor_time_constant_s"), Settings.MotorTimeConstantS);
+    Object->SetNumberField(TEXT("thrust_coefficient"), Settings.ThrustCoefficient);
+    Object->SetNumberField(TEXT("torque_coefficient"), Settings.TorqueCoefficient);
+    Object->SetNumberField(TEXT("motor_max_rad_s"), Settings.MotorMaxRadS);
+    Object->SetNumberField(TEXT("rotor_inertia"), Settings.RotorInertiaKgM2);
+    Object->SetNumberField(TEXT("rotor_radius_m"), Settings.RotorRadiusM);
+    Object->SetNumberField(TEXT("air_density"), Settings.AirDensity);
+    Object->SetNumberField(TEXT("drag_linear"), Settings.DragLinear);
+    Object->SetNumberField(TEXT("drag_quadratic"), Settings.DragQuadratic);
+    Object->SetNumberField(TEXT("gravity"), Settings.GravityMS2);
+    Object->SetNumberField(TEXT("ground_effect_strength"), Settings.GroundEffectStrength);
+    Object->SetNumberField(TEXT("wind_x"), Settings.WindXMS);
+    Object->SetNumberField(TEXT("wind_y"), Settings.WindYMS);
+    Object->SetNumberField(TEXT("gust_intensity"), Settings.GustIntensityMS);
+    Object->SetNumberField(TEXT("max_tilt_deg"), Settings.MaxTiltDeg);
+    Object->SetNumberField(TEXT("max_speed_ms"), Settings.MaxSpeedMS);
+    Object->SetNumberField(TEXT("substep_hz"), Settings.SubstepHz);
+    Object->SetStringField(TEXT("preset_name"), PresetName);
+    Object->SetNumberField(TEXT("motor_count"), Settings.MotorCount);
+    return SerializeObject(Object);
 }
 
 auto EncodeControlAck(int64 ActionSeq, double ControlMs) -> TArray<uint8>
 {
-    TArray<uint8> Inner;
-    AppendVarintField(Inner, 1, static_cast<uint64>(ActionSeq));
-    AppendDoubleField(Inner, 2, ControlMs);
-    return WrapAsEnvelope(2, Inner); // ClientMessage.ack
+    const TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+    Object->SetStringField(TEXT("type"), TEXT("ack"));
+    Object->SetNumberField(TEXT("action_seq"), static_cast<double>(ActionSeq));
+    Object->SetNumberField(TEXT("t_control_ms"), ControlMs);
+    return SerializeObject(Object);
 }
 
 auto DecodeServerMessage(TConstArrayView<uint8> Payload, FEegActionResult &OutResult) -> bool
 {
-    FProtoReader Reader{Payload.GetData(), Payload.Num()};
-
-    while (!Reader.AtEnd())
+    const TSharedRef<TJsonReader<TCHAR>> Reader = TJsonReaderFactory<TCHAR>::Create(Utf8ToString(Payload));
+    TSharedPtr<FJsonObject> Object;
+    if (!FJsonSerializer::Deserialize(Reader, Object) || !Object.IsValid())
     {
-        uint64 Tag = 0;
-        if (!Reader.ReadVarint(Tag))
-        {
-            return false;
-        }
+        return false;
+    }
 
-        if ((Tag >> 3) == 1 && (Tag & 0x7) == WireLengthDelimited) // ServerMessage.action
-        {
-            TConstArrayView<uint8> View;
-            return Reader.ReadLengthDelimited(View) && ParseActionResult(View, OutResult);
-        }
+    FString Type;
+    if (!Object->TryGetStringField(TEXT("type"), Type) || Type != TEXT("action"))
+    {
+        return false; // only action results are expected from the server
+    }
 
-        if (!Reader.SkipField(static_cast<uint32>(Tag & 0x7)))
+    OutResult.ActionSeq = static_cast<int64>(GetNumber(Object, TEXT("action_seq")));
+    OutResult.Confidence = static_cast<float>(GetNumber(Object, TEXT("confidence")));
+    OutResult.InferDurationMs = GetNumber(Object, TEXT("infer_duration_ms"));
+
+    const TArray<TSharedPtr<FJsonValue>> *Probs = nullptr;
+    if (Object->TryGetArrayField(TEXT("action_probs"), Probs))
+    {
+        const int32 Count = FMath::Min(Probs->Num(), EegConfig::ProbCount);
+        for (int32 Index = 0; Index < Count; ++Index)
         {
-            return false;
+            OutResult.ActionProbs[Index] = static_cast<float>((*Probs)[Index]->AsNumber());
         }
     }
 
-    return false;
+    FEegMetrics &Metrics = OutResult.Metrics;
+    Metrics.LatencyDeviceToInferMeanMs = static_cast<float>(GetNumber(Object, TEXT("latency_device_to_infer_mean_ms")));
+    Metrics.LatencyDeviceToInferLastMs = static_cast<float>(GetNumber(Object, TEXT("latency_device_to_infer_last_ms")));
+    Metrics.LatencyDeviceToInferP95Ms = static_cast<float>(GetNumber(Object, TEXT("latency_device_to_infer_p95_ms")));
+    Metrics.LatencyInferToControlMeanMs =
+        static_cast<float>(GetNumber(Object, TEXT("latency_infer_to_control_mean_ms")));
+    Metrics.LatencyInferToControlLastMs =
+        static_cast<float>(GetNumber(Object, TEXT("latency_infer_to_control_last_ms")));
+    Metrics.LatencyInferToControlP95Ms = static_cast<float>(GetNumber(Object, TEXT("latency_infer_to_control_p95_ms")));
+    Metrics.LatencyDeviceToControlMeanMs =
+        static_cast<float>(GetNumber(Object, TEXT("latency_device_to_control_mean_ms")));
+    Metrics.LatencyDeviceToControlLastMs =
+        static_cast<float>(GetNumber(Object, TEXT("latency_device_to_control_last_ms")));
+    Metrics.LatencyDeviceToControlP95Ms =
+        static_cast<float>(GetNumber(Object, TEXT("latency_device_to_control_p95_ms")));
+    Metrics.ReliabilityOverallPercent = static_cast<float>(GetNumber(Object, TEXT("reliability_overall_percent")));
+    Metrics.ReliabilityFramePercent = static_cast<float>(GetNumber(Object, TEXT("reliability_frame_percent")));
+    Metrics.ReliabilityFramesLost = static_cast<int32>(GetNumber(Object, TEXT("reliability_frames_lost")));
+    Metrics.ReliabilityAckPercent = static_cast<float>(GetNumber(Object, TEXT("reliability_ack_percent")));
+
+    FString ActionLabel;
+    Object->TryGetStringField(TEXT("action"), ActionLabel);
+    return ParseScenarioActionName(ActionLabel, OutResult.Action);
 }
 
 auto NowUnixMs() -> double

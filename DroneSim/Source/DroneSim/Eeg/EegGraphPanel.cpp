@@ -69,8 +69,8 @@ auto SEegGraph::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedGeometr
         return LayerId + 1;
     }
 
-    const TArray<float> &Buffer = Pinned->GetSimulator().GetGraphBuffer();
-    const int32 OldestIndex = Pinned->GetSimulator().GetGraphWriteIndex();
+    const TArray<float> &Buffer = Pinned->GetSignalSource().GetGraphBuffer();
+    const int32 OldestIndex = Pinned->GetSignalSource().GetGraphWriteIndex();
     if (Buffer.Num() < EegConfig::ChannelCount * EegConfig::GraphWindowSamples)
     {
         return LayerId + 1;

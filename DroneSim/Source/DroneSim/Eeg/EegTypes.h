@@ -7,18 +7,18 @@
  *  The channel-group demo rule encoded here must match eeg-server/eeg_server/config.py. */
 namespace EegConfig
 {
-/** Number of electrodes on the simulated EEG device */
-inline constexpr int32 ChannelCount = 32;
+/** Number of channels sent to the EEG server - the AI model's input channel count.
+ *  The frame DroneSim sends IS the model input (22 channels in model-row order); real
+ *  OpenBCI acquisition fills these via mappings/*.json (overlap mapped, rest zero). */
+inline constexpr int32 ChannelCount = 22;
 
-/** International 10-20/10-10 electrode names for the 32 simulated channels, in the same
- *  order as ChannelCount / GroupStartChannel. Approximates a standard actiCAP/EasyCap
- *  32-channel montage (matches MNE's easycap-M1 template channel order); the simulated
- *  device has no real montage, so this is a display label only. */
+/** BCI Competition IV-2a 22-electrode montage in the AI model's input-row order
+ *  (model index 0..21), matching eeg-server/eeg_server/config.py CHANNEL_NAMES and
+ *  mappings/channel_to_model_index.json. Keep all three in sync. */
 inline constexpr const TCHAR *ChannelNames[ChannelCount] = {
-    TEXT("Fp1"), TEXT("Fp2"), TEXT("F7"),  TEXT("F3"),  TEXT("Fz"), TEXT("F4"),   TEXT("F8"),  TEXT("FC5"),
-    TEXT("FC1"), TEXT("FC2"), TEXT("FC6"), TEXT("T7"),  TEXT("C3"), TEXT("Cz"),   TEXT("C4"),  TEXT("T8"),
-    TEXT("CP5"), TEXT("CP1"), TEXT("CP2"), TEXT("CP6"), TEXT("P7"), TEXT("P3"),   TEXT("Pz"),  TEXT("P4"),
-    TEXT("P8"),  TEXT("PO9"), TEXT("O1"),  TEXT("Oz"),  TEXT("O2"), TEXT("PO10"), TEXT("AF7"), TEXT("AF8"),
+    TEXT("Fz"),  TEXT("FC3"), TEXT("FC1"), TEXT("FCz"), TEXT("FC2"), TEXT("FC4"), TEXT("C5"),  TEXT("C3"),
+    TEXT("C1"),  TEXT("Cz"),  TEXT("C2"),  TEXT("C4"),  TEXT("C6"),  TEXT("CP3"), TEXT("CP1"), TEXT("CPz"),
+    TEXT("CP2"), TEXT("CP4"), TEXT("P1"),  TEXT("Pz"),  TEXT("P2"),  TEXT("POz"),
 };
 static_assert(UE_ARRAY_COUNT(ChannelNames) == ChannelCount, "ChannelNames must have one entry per channel");
 
@@ -30,29 +30,6 @@ inline constexpr int32 SamplesPerFrame = 25;
 
 /** Samples per channel kept for the on-screen electrode graphs (2 s window) */
 inline constexpr int32 GraphWindowSamples = SampleRateHz * 2;
-
-/** First channel of the group whose amplitude is boosted for the action; INDEX_NONE for Stop.
- *  Groups are GroupChannelCount channels wide and separated so the dummy classifier can
- *  tell them apart: FORWARD=0..5, LEFT=8..13, RIGHT=18..23, BACKWARD=26..31. */
-inline constexpr int32 GroupChannelCount = 6;
-
-inline constexpr auto GroupStartChannel(EScenarioAction Action) -> int32
-{
-    switch (Action)
-    {
-    case EScenarioAction::Forward:
-        return 0;
-    case EScenarioAction::Left:
-        return 8;
-    case EScenarioAction::Right:
-        return 18;
-    case EScenarioAction::Backward:
-        return 26;
-    case EScenarioAction::Stop:
-        return INDEX_NONE;
-    }
-    return INDEX_NONE;
-}
 
 /** Wire order of ActionResult.action_probs; must match config.ACTION_PROB_ORDER on the server */
 inline constexpr EScenarioAction ProbOrder[] = {EScenarioAction::Forward, EScenarioAction::Backward,

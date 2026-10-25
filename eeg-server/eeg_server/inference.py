@@ -1,26 +1,24 @@
-"""Dummy EEG classifier implementing the fixed demo rule.
+"""EEG classification: the AI model's decision over a sliding 4 s window.
 
-DroneSim's simulated device boosts the amplitude of one channel group per
-movement action (see ``config.ACTION_GROUP_START``). This classifier turns the
-RMS energy of each group into a probability per action with a softmax: a group
-that clearly dominates pulls the distribution toward its action, while a
-resting signal (all groups near the mean) favors STOP through a fixed bias.
-The inferred action is the argmax, so the label always matches the reported
-distribution. The real AI model will replace this module while keeping
-:func:`classify_frame`'s signature.
+:class:`StreamClassifier` is what the TCP server drives (one per connection). It buffers
+incoming EEG frames into the model's 4 s window and returns the UnifiedEEGNet decision
+(:mod:`eeg_server.model_runtime`). The action is ALWAYS the model's output - it is never
+encoded into or recovered from the raw signal. While the window is still filling, or when
+PyTorch/the checkpoint are unavailable, it reports STOP.
 """
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
+from typing import Optional
 
 from . import config
+from .model_runtime import TorchModel, WindowBuffer, load_model, mi_probs_to_action
 
 
 @dataclass
 class InferenceResult:
-    """Outcome of classifying one EEG frame."""
+    """Outcome of classifying one EEG frame / window."""
 
     action: str
     #: Probability of the winning action, in [0, 1].
@@ -29,40 +27,47 @@ class InferenceResult:
     probabilities: dict[str, float]
 
 
-def _group_rms(data: list[float], channel_count: int, group_start: int) -> float:
-    """RMS over all samples of the ``GROUP_CHANNEL_COUNT`` channels of one group."""
-    total = 0.0
-    count = 0
-    sample_count = len(data) // channel_count
-    for sample in range(sample_count):
-        base = sample * channel_count
-        for channel in range(group_start, group_start + config.GROUP_CHANNEL_COUNT):
-            value = data[base + channel]
-            total += value * value
-            count += 1
-    return math.sqrt(total / count) if count > 0 else 0.0
+# A single model is shared across connections (weights are read-only); each connection
+# keeps its own WindowBuffer. Loaded lazily so importing this module stays cheap.
+_SHARED_MODEL: Optional[TorchModel] = None
 
 
-def classify_frame(data: list[float], channel_count: int) -> InferenceResult:
-    """Classifies one sample-major EEG frame into a per-action probability distribution."""
-    rms_by_action = {
-        action: _group_rms(data, channel_count, start)
-        for action, start in config.ACTION_GROUP_START.items()
-    }
-    mean_rms = sum(rms_by_action.values()) / len(rms_by_action)
+def get_shared_model() -> TorchModel:
+    global _SHARED_MODEL
+    if _SHARED_MODEL is None:
+        _SHARED_MODEL = load_model()
+    return _SHARED_MODEL
 
-    # normalized group energy; 1.0 = average. STOP competes with a fixed baseline so
-    # it wins whenever no movement group stands out from the rest.
-    scores = {
-        action: (rms / mean_rms if mean_rms > 0.0 else 1.0)
-        for action, rms in rms_by_action.items()
-    }
-    scores[config.STOP_ACTION] = config.STOP_BIAS
 
-    peak = max(scores.values())  # subtracted for numerical stability
-    weights = {action: math.exp(config.SOFTMAX_SHARPNESS * (score - peak)) for action, score in scores.items()}
-    total_weight = sum(weights.values())
-    probabilities = {action: weight / total_weight for action, weight in weights.items()}
+def stop_result() -> InferenceResult:
+    """A fully-confident STOP (window still filling, or no model available)."""
+    probabilities = {action: (1.0 if action == config.STOP_ACTION else 0.0)
+                     for action in config.ACTION_PROB_ORDER}
+    return InferenceResult(action=config.STOP_ACTION, confidence=1.0, probabilities=probabilities)
 
-    action = max(probabilities, key=lambda name: probabilities[name])
-    return InferenceResult(action=action, confidence=probabilities[action], probabilities=probabilities)
+
+class StreamClassifier:
+    """Per-connection classifier: the AI model over a sliding window (else STOP)."""
+
+    def __init__(self, model: Optional[TorchModel] = None) -> None:
+        self._model = model if model is not None else get_shared_model()
+        self._buffer = WindowBuffer()
+
+    def reset(self) -> None:
+        """Clears the window buffer; call when a new DroneSim client connects."""
+        self._buffer.reset()
+
+    @property
+    def using_model(self) -> bool:
+        return self._model.available
+
+    def classify(self, data: list[float], channel_count: int) -> InferenceResult:
+        """Buffers one frame and returns the model's decision once the window is full."""
+        if not self._model.available:
+            return stop_result()  # no model -> the drone holds until a model is available
+
+        self._buffer.push(data, channel_count)
+        if not self._buffer.is_full():
+            return stop_result()  # warming up: hold STOP until the first full window
+        action, confidence, probabilities = mi_probs_to_action(self._model.predict(self._buffer.matrix()))
+        return InferenceResult(action=action, confidence=confidence, probabilities=probabilities)

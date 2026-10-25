@@ -4,7 +4,7 @@
 #include "CoreMinimal.h"
 #include "DronePhysics.h"
 #include "EegClient.h"
-#include "EegSignalSimulator.h"
+#include "EegOpenBciSource.h"
 #include "EegTypes.h"
 
 #include "EegRunnerComponent.generated.h"
@@ -15,7 +15,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEegActionChanged, const FString &
 
 /**
  *  Drives the EEG running mode on the owning player controller's pawn:
- *  every tick it pumps the simulated 32-electrode EEG device, streams the completed
+ *  every tick it pumps the OpenBCI EEG device, streams the completed
  *  100 ms frames to the EEG server, applies the last inference result as two-axis
  *  transmitter input - pitch = P(forward)-P(backward), roll = P(right)-P(left), each
  *  a throttle in [-1, 1] fed to the same drone physics as scenario playback - and
@@ -49,8 +49,8 @@ class UEegRunnerComponent : public UActorComponent
     /** True while the EEG server connection is established */
     auto IsServerConnected() const -> bool;
 
-    /** Simulated device, exposed read-only for the electrode graph widget */
-    auto GetSimulator() const -> const FEegSignalSimulator &;
+    /** OpenBCI signal source, exposed read-only for the electrode graph widget */
+    auto GetSignalSource() const -> const FEegOpenBciSource &;
 
     /** Per-action probabilities of the last result in [0, 1], ordered by EegConfig::ProbOrder;
      *  all zero until the first action result arrives */
@@ -89,6 +89,15 @@ class UEegRunnerComponent : public UActorComponent
     UPROPERTY(EditAnywhere, Category = "EEG")
     int32 ServerPort = 9800;
 
+    /** OpenBCI Cyton dongle serial port (e.g. "COM3") passed to BrainFlow */
+    UPROPERTY(EditAnywhere, Category = "EEG")
+    FString OpenBciSerialPort = TEXT("COM3");
+
+    /** Optional override for the board-channel -> electrode map; empty uses
+     *  <ProjectDir>/../mappings/openbci_to_channel.json */
+    UPROPERTY(EditAnywhere, Category = "EEG")
+    FString OpenBciMappingFile;
+
   private:
     /** Handles one server payload: adopts the inferred action and queues its ack */
     void HandleServerMessage(TConstArrayView<uint8> Payload);
@@ -102,8 +111,8 @@ class UEegRunnerComponent : public UActorComponent
     /** Returns the pawn currently possessed by the owning player controller */
     auto GetControlledPawn() const -> APawn *;
 
-    /** Simulated EEG device (stands in for real hardware) */
-    FEegSignalSimulator Simulator;
+    /** OpenBCI EEG device via BrainFlow */
+    FEegOpenBciSource Source;
 
     /** TCP link to the Python EEG server */
     FEegClient Client;

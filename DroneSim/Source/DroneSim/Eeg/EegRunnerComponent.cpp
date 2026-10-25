@@ -41,8 +41,7 @@ void UEegRunnerComponent::Start(float InMoveSpeed)
     bWarnedNoPawn = false;
     MoveSpeed = InMoveSpeed;
 
-    // seed from the clock: the noise should differ between runs, unlike unit-style tests
-    Simulator.Start(static_cast<int32>(FPlatformTime::Cycles()));
+    Source.Start(OpenBciSerialPort, OpenBciMappingFile);
     Client.Connect(ServerHost, ServerPort);
 
     if (ACharacter *Character = Cast<ACharacter>(GetControlledPawn()))
@@ -69,6 +68,7 @@ void UEegRunnerComponent::Stop()
     bRunning = false;
     SetComponentTickEnabled(false);
     Physics.End();
+    Source.Stop();
     Client.Disconnect();
     FScenarioLog::Info(FString::Printf(TEXT("EEG running mode stopped; messages dropped while disconnected: %lld"),
                                        Client.GetDroppedMessageCount()));
@@ -90,9 +90,9 @@ auto UEegRunnerComponent::IsServerConnected() const -> bool
     return Client.IsConnected();
 }
 
-auto UEegRunnerComponent::GetSimulator() const -> const FEegSignalSimulator &
+auto UEegRunnerComponent::GetSignalSource() const -> const FEegOpenBciSource &
 {
-    return Simulator;
+    return Source;
 }
 
 auto UEegRunnerComponent::GetLastActionProbs() const -> TConstArrayView<float>
@@ -163,8 +163,8 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         }
     }
 
-    // 2) advance the simulated device and stream completed frames to the server
-    Simulator.Tick(DeltaTime, PendingFrames);
+    // 2) advance the OpenBCI device and stream completed frames to the server
+    Source.Tick(DeltaTime, PendingFrames);
     for (const FEegFrame &Frame : PendingFrames)
     {
         Client.SendPayload(EegProto::EncodeEegFrame(Frame, EegProto::NowUnixMs()));

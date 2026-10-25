@@ -5,3 +5,6 @@ scikit-learn
 mne
 pyriemann
 matplotlib
+# AI model runtime (UnifiedEEGNet inference). CPU wheels are fine; without torch the
+# server still runs and holds STOP until a model is available.
+torch

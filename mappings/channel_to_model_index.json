@@ -1,0 +1,38 @@
+{
+  "_comment": "전극명 → 모델 입력 인덱스(0~21). 학습된 순서로 적용. 안 쓰는 채널은 0으로 채움.",
+  "model": "UnifiedEEGNet",
+  "model_channel_count": 22,
+  "sample_rate_hz": 250,
+  "window_samples": 1000,
+  "window_seconds": 4.0,
+  "classes": {
+    "0": "left_hand",
+    "1": "right_hand",
+    "2": "feet",
+    "3": "tongue"
+  },
+  "index": {
+    "Fz": 0,
+    "FC3": 1,
+    "FC1": 2,
+    "FCz": 3,
+    "FC2": 4,
+    "FC4": 5,
+    "C5": 6,
+    "C3": 7,
+    "C1": 8,
+    "Cz": 9,
+    "C2": 10,
+    "C4": 11,
+    "C6": 12,
+    "CP3": 13,
+    "CP1": 14,
+    "CPz": 15,
+    "CP2": 16,
+    "CP4": 17,
+    "P1": 18,
+    "Pz": 19,
+    "P2": 20,
+    "POz": 21
+  }
+}

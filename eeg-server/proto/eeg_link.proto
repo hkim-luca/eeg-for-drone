@@ -1,14 +1,11 @@
-// Wire schema of the DroneSim <-> EEG server link.
-// Single source of truth: the Python side uses code generated from this file
-// (eeg_server/eeg_link_pb2.py); the UE side implements the same wire format by
-// hand in DroneSim/Source/DroneSim/Eeg/EegProto.cpp to avoid a protoc/libprotobuf
-// dependency in the engine build. Keep all three in sync.
+// Message SCHEMA REFERENCE for the DroneSim <-> EEG server link.
 //
-// Framing over TCP: each message is prefixed with its byte length as a
-// 4-byte little-endian unsigned integer.
-//
-// Regenerate the Python module with:
-//   python -m grpc_tools.protoc -I proto --python_out=eeg_server proto/eeg_link.proto
+// The link is NOT protobuf on the wire: messages are UTF-8 JSON objects, each behind a
+// 4-byte little-endian length prefix. This .proto is kept only to document the field
+// names and types - the JSON keys match the field names here. Both sides implement the
+// JSON directly: Python in eeg_server/protocol.py, UE in
+// DroneSim/Source/DroneSim/Eeg/EegProto.cpp. A ClientMessage/ServerMessage is sent as a
+// flat JSON object with a "type" discriminator ("eeg" | "ack" | "physics" | "action").
 
 syntax = "proto3";
 
