@@ -43,9 +43,9 @@ def test_parse_client_message_rejects_bad_input() -> None:
 
 
 def test_build_action_payload_round_trips() -> None:
-    probs = [0.1, 0.2, 0.3, 0.1, 0.3]
+    probs = [0.1, 0.2, 0.4, 0.3]
     framed = build_action_payload(
-        action_seq=7, eeg_seq=42, action="LEFT", confidence=0.3,
+        action_seq=7, eeg_seq=42, action="LEFT", confidence=0.4,
         infer_duration_ms=1.5, probabilities=probs, metrics=_fake_metrics(),
     )
     (length,) = _PREFIX.unpack(framed[: _PREFIX.size])

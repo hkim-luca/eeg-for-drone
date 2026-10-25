@@ -4,7 +4,7 @@
 #include "ScenarioTypes.h"
 
 /** Returns the world-space movement direction of one scenario action relative to the
- *  given yaw rotation; zero for Stop. When bTurnWithLeftRight is set, Left/Right are
+ *  given yaw rotation. When bTurnWithLeftRight is set, Left/Right are
  *  turn commands (see ScenarioActionYawRate) and translate nothing. Shared by
  *  scenario playback and EEG running mode so both feed FDronePhysics identically. */
 inline auto ScenarioActionDirection(EScenarioAction Action, const FRotator &YawRotation,
@@ -23,7 +23,6 @@ inline auto ScenarioActionDirection(EScenarioAction Action, const FRotator &YawR
         return Forward;
     case EScenarioAction::Backward:
         return -Forward;
-    case EScenarioAction::Stop:
     default:
         return FVector::ZeroVector;
     }

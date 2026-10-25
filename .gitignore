@@ -55,3 +55,6 @@ docs/
 /DroneSim/Content/Maps/daejeon_satellite_z16.uasset
 # 다운로드 중 임시 파일
 *.part
+
+# 빌드 시 ../mappings에서 복사됨
+DroneSim/mappings/

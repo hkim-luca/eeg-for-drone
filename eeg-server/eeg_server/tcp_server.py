@@ -47,7 +47,7 @@ class EegTcpServer:
 
         # Fresh classifier per connection: a new sliding window, no leftover samples.
         classifier = StreamClassifier()
-        _LOGGER.info("classifier: %s", "AI model" if classifier.using_model else "no model (holding STOP)")
+        _LOGGER.info("classifier: %s", "AI model" if classifier.using_model else "no model (no actions sent)")
 
         try:
             while True:
@@ -99,11 +99,13 @@ class EegTcpServer:
 
         result = classifier.classify(data, channels)
         infer_duration_ms = now_ms() - frame_received_ms
-        moment = now_kst()
-        probabilities = [result.probabilities[action] for action in config.ACTION_PROB_ORDER]
-
         self._state.metrics.on_frame(seq)
         self._state.on_frame(data, channels)
+        if result is None:
+            return  # window still filling (or no model): nothing to send, the drone hovers
+
+        moment = now_kst()
+        probabilities = [result.probabilities[action] for action in config.ACTION_PROB_ORDER]
         self._state.on_inference(result.action, result.confidence, probabilities, moment.strftime("%H:%M:%S"))
 
         action_seq = self._next_action_seq

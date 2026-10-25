@@ -84,19 +84,12 @@ MODEL_N_CLASSES: Final[int] = int(_MODEL_CFG.get("n_classes", 4))
 #: Model output classes, in output-logit order (index 0..n_classes-1).
 MI_CLASSES: Final[tuple[str, ...]] = tuple(_MODEL_CFG.get("mi_classes", _DEFAULT_MI_CLASSES))
 
-#: Motor-imagery class -> drone action. STOP has no MI class; it is inferred when the
-#: model is not confident about any movement (see MODEL_STOP_BIAS below).
+#: Motor-imagery class -> drone action.
 MI_TO_ACTION: Final[dict[str, str]] = dict(_MODEL_CFG.get("mi_to_action", _DEFAULT_MI_TO_ACTION))
-
-#: STOP competes with the mapped movements using weight MODEL_STOP_BIAS * (1 - max_p),
-#: where max_p is the top movement probability. Higher => STOP wins more readily when unsure.
-MODEL_STOP_BIAS: Final[float] = float(_MODEL_CFG.get("stop_bias", 1.0))
-
-STOP_ACTION: Final[str] = "STOP"
 
 #: Wire order of ActionResult.action_probs; must match EegConfig::ProbOrder in DroneSim.
 #: The action is always the AI model's decision - never encoded into the EEG signal.
-ACTION_PROB_ORDER: Final[tuple[str, ...]] = ("FORWARD", "BACKWARD", "LEFT", "RIGHT", "STOP")
+ACTION_PROB_ORDER: Final[tuple[str, ...]] = ("FORWARD", "BACKWARD", "LEFT", "RIGHT")
 
 # --- dashboard / metrics (server-only) --------------------------------------
 #: Inference results kept for the dashboard probability time series (~30 s at 10/s).

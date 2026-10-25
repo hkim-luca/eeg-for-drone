@@ -29,5 +29,5 @@ UnifiedEEGNet, 입력 `[1, 22, 1000]` = 22채널 × 4초(250Hz), 출력 4클래�
 ## 쓰기 전 할 일
 
 - `openbci_to_sim.json`을 실제 전극 위치로 수정 (8채널이면 그대로, 16채널이면 `channel_count`를 16으로 올리고 8~15 추가)
-- eeg-server에서 `pip install torch` (없으면 서버는 계속 STOP만 보냄)
+- eeg-server에서 `pip install torch` (없으면 서버는 동작을 보내지 않음)
 - UE에 BrainFlow C++ SDK를 `D:\eeg-for-drone\DroneSim\ThirdParty\BrainFlow\`에 넣고 리빌드 (그 폴더 README 참고)

@@ -33,9 +33,9 @@ inline constexpr int32 GraphWindowSamples = SampleRateHz * 2;
 
 /** Wire order of ActionResult.action_probs; must match config.ACTION_PROB_ORDER on the server */
 inline constexpr EScenarioAction ProbOrder[] = {EScenarioAction::Forward, EScenarioAction::Backward,
-                                                EScenarioAction::Left, EScenarioAction::Right, EScenarioAction::Stop};
+                                                EScenarioAction::Left, EScenarioAction::Right};
 
-inline constexpr int32 ProbCount = 5;
+inline constexpr int32 ProbCount = UE_ARRAY_COUNT(ProbOrder);
 
 /** Index of one action inside ActionProbs (the ProbOrder position); INDEX_NONE if absent */
 inline constexpr auto ProbIndex(EScenarioAction Action) -> int32
@@ -92,7 +92,7 @@ struct FEegActionResult
     int64 ActionSeq = 0;
 
     /** Action the server inferred from the EEG frames */
-    EScenarioAction Action = EScenarioAction::Stop;
+    EScenarioAction Action = EScenarioAction::Forward;
 
     /** Classifier confidence in [0, 1]; informational only */
     float Confidence = 0.0f;

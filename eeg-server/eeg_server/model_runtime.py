@@ -3,13 +3,13 @@
 DroneSim streams short EEG frames (100 ms); this module keeps a per-connection
 rolling buffer of the last ``WINDOW_SAMPLES`` samples per channel and, once the
 buffer is full, runs the trained ``UnifiedEEGNet`` checkpoint to get 4 motor-imagery
-class probabilities, which :func:`mi_probs_to_action` maps to the 5 DroneSim actions.
+class probabilities, which :func:`mi_probs_to_action` maps to the 4 DroneSim actions.
 
 The pure pieces (:class:`WindowBuffer`, :func:`mi_probs_to_action`) have no heavy
 dependencies and are unit-tested directly. The PyTorch parts live in
 :class:`TorchModel` and are loaded lazily; if torch/numpy or the checkpoint are
-unavailable, :func:`load_model` returns an unavailable stub and the server holds STOP
-(see :class:`eeg_server.inference.StreamClassifier`).
+unavailable, :func:`load_model` returns an unavailable stub and the server sends no
+actions (see :class:`eeg_server.inference.StreamClassifier`).
 """
 
 from __future__ import annotations
@@ -59,20 +59,17 @@ class WindowBuffer:
 
 
 def mi_probs_to_action(mi_probs: list[float]) -> tuple[str, float, dict[str, float]]:
-    """Maps the 4 motor-imagery class probabilities to a DroneSim action distribution.
+    """Maps the motor-imagery class probabilities to a DroneSim action distribution.
 
-    ``mi_probs`` follows ``config.MI_CLASSES`` order and sums to ~1. Each MI class maps
-    to a movement via ``config.MI_TO_ACTION``; STOP competes with weight
-    ``MODEL_STOP_BIAS * (1 - max_movement_prob)`` so an unconfident window becomes STOP.
-    Returns (action, confidence, probabilities) with probabilities over
-    ``config.ACTION_PROB_ORDER`` summing to ~1.
+    ``mi_probs`` follows ``config.MI_CLASSES`` order; each class adds its probability to the
+    action given by ``config.MI_TO_ACTION``. Returns (action, confidence, probabilities) with
+    probabilities over ``config.ACTION_PROB_ORDER`` summing to ~1.
     """
-    movement = {config.MI_TO_ACTION[cls]: float(prob) for cls, prob in zip(config.MI_CLASSES, mi_probs)}
-    max_movement = max(movement.values()) if movement else 0.0
-    stop_weight = config.MODEL_STOP_BIAS * max(0.0, 1.0 - max_movement)
-
-    scores = {action: movement.get(action, 0.0) for action in config.ACTION_PROB_ORDER}
-    scores[config.STOP_ACTION] = stop_weight
+    scores = {action: 0.0 for action in config.ACTION_PROB_ORDER}
+    for cls, prob in zip(config.MI_CLASSES, mi_probs):
+        action = config.MI_TO_ACTION.get(cls)
+        if action in scores:
+            scores[action] += float(prob)
 
     total = sum(scores.values())
     if total <= 0.0:
@@ -181,5 +178,5 @@ def load_model(checkpoint_path=config.MODEL_CHECKPOINT) -> TorchModel:
                      Path(checkpoint_path).name, config.MODEL_CLASS, config.CHANNEL_COUNT, config.WINDOW_SAMPLES)
         return TorchModel(predictor=predictor, available=True)
     except Exception as error:  # noqa: BLE001 - any failure must degrade gracefully
-        _LOGGER.warning("AI model unavailable (%s); the drone will hold STOP until a model loads", error)
+        _LOGGER.warning("AI model unavailable (%s); no actions will be sent until a model loads", error)
         return TorchModel(predictor=None, available=False)

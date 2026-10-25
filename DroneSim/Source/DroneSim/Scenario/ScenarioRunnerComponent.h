@@ -61,7 +61,7 @@ class UScenarioRunnerComponent : public UActorComponent
     UPROPERTY(BlueprintAssignable, Category = "Scenario")
     FOnScenarioFinished OnScenarioFinished;
 
-    /** Fired when the currently applied action changes; label is LEFT, RIGHT, FRONTWARD, BACKWARD, STOP or WAIT */
+    /** Fired when the currently applied action changes; label is LEFT, RIGHT, FORWARD, BACKWARD or WAIT */
     UPROPERTY(BlueprintAssignable, Category = "Scenario")
     FOnScenarioActionChanged OnActionChanged;
 

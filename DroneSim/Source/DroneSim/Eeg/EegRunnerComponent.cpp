@@ -13,9 +13,12 @@ namespace
 /** Label published while the server connection is not up; not an action name */
 const TCHAR *ConnectingLabel = TEXT("CONNECTING");
 
+/** Label published while connected but the server has not sent a result yet (window filling) */
+const TCHAR *WaitingLabel = TEXT("WAIT");
+
 /** Stick travel below which an axis reads zero: a real classifier never balances its
  *  opposing probabilities exactly, and without a deadzone that residual would drift
- *  the drone while the inference says STOP */
+ *  the drone while no action clearly wins */
 constexpr float AxisDeadzone = 0.1f;
 
 auto ApplyAxisDeadzone(float Axis) -> float
@@ -61,7 +64,7 @@ auto UEegRunnerComponent::ResolveSettings() const -> FEegLaunchSettings
 
 void UEegRunnerComponent::Start(float InMoveSpeed)
 {
-    CurrentAction = EScenarioAction::Stop;
+    CurrentAction.Reset();
     FMemory::Memzero(LastActionProbs);
     LastMetrics = FEegMetrics();
     MetricsHistory.Reset();
@@ -189,7 +192,7 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         if (!bWasConnected)
         {
             // stale commands must not keep the drone moving
-            CurrentAction = EScenarioAction::Stop;
+            CurrentAction.Reset();
             FMemory::Memzero(LastActionProbs);
             PublishActionLabel(ConnectingLabel);
         }
@@ -251,7 +254,7 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 
         if (bWasConnected)
         {
-            PublishActionLabel(ScenarioActionName(CurrentAction));
+            PublishActionLabel(CurrentAction.IsSet() ? ScenarioActionName(*CurrentAction) : WaitingLabel);
         }
     }
     else if (!bWarnedNoPawn)

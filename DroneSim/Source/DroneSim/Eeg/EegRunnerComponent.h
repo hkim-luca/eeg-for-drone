@@ -143,8 +143,8 @@ class UEegRunnerComponent : public UActorComponent
     /** Action results received this tick, acked after the movement input is applied */
     TArray<FEegActionResult> PendingAcks;
 
-    /** Action currently applied to the pawn; updated by server messages */
-    EScenarioAction CurrentAction = EScenarioAction::Stop;
+    /** Action currently applied to the pawn; unset until the server sends its first result */
+    TOptional<EScenarioAction> CurrentAction;
 
     /** Per-action probabilities of the last result, ordered by EegConfig::ProbOrder */
     float LastActionProbs[EegConfig::ProbCount] = {};

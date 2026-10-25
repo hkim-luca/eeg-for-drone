@@ -10,7 +10,7 @@ class UEegRunnerComponent;
 
 /**
  *  UMG widget that draws the per-action inference probabilities (FORWARD/BACKWARD/LEFT/
- *  RIGHT/STOP) as horizontal bars, one row per action, ordered by EegConfig::ProbOrder; the
+ *  RIGHT) as horizontal bars, one row per action, ordered by EegConfig::ProbOrder; the
  *  winning action's bar and label are highlighted. Drop it into a Widget Blueprint (the EEG
  *  HUD places it top-left) and size it there.
  */

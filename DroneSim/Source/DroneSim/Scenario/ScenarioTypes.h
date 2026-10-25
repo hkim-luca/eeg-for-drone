@@ -11,8 +11,7 @@ enum class EScenarioAction : uint8
     Left,
     Right,
     Forward,
-    Backward,
-    Stop
+    Backward
 };
 
 /** A single scenario step: apply Action for Duration seconds. Steps run in file order;
@@ -28,7 +27,7 @@ struct FScenarioStep
 
     /** Movement action to apply */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario")
-    EScenarioAction Action = EScenarioAction::Stop;
+    EScenarioAction Action = EScenarioAction::Forward;
 };
 
 /** Action label taken from the enum entry name (e.g. FRONTWARD); the single source used by
@@ -38,7 +37,7 @@ inline auto ScenarioActionName(EScenarioAction Action) -> FString
     return StaticEnum<EScenarioAction>()->GetNameStringByValue(static_cast<int64>(Action)).ToUpper();
 }
 
-/** Parses the uppercase wire label (LEFT, RIGHT, FORWARD, BACKWARD, STOP) written by
+/** Parses the uppercase wire label (LEFT, RIGHT, FORWARD, BACKWARD) written by
  *  ScenarioActionName() back to the enum; returns false if the label is unknown */
 inline auto ParseScenarioActionName(const FString &Label, EScenarioAction &OutAction) -> bool
 {

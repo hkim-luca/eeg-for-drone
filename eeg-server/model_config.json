@@ -17,6 +17,5 @@
     "right_hand": "RIGHT",
     "feet": "FORWARD",
     "tongue": "BACKWARD"
-  },
-  "stop_bias": 1.0
+  }
 }

@@ -2,7 +2,7 @@
 
 DroneSim가 보내는 **22채널 EEG frame**(JSON)을 버퍼링해 **4초(1000샘플) 윈도우**가 차면
 **UnifiedEEGNet**(BCI IV-2a 학습)으로 추론하고, 4클래스 motor imagery를 드론 동작
-(`FORWARD/BACKWARD/LEFT/RIGHT/STOP`) 확률로 매핑해 돌려줍니다. 액션은 **오직 모델 결과**로
+(`FORWARD/BACKWARD/LEFT/RIGHT`) 확률로 매핑해 돌려줍니다. 액션은 **오직 모델 결과**로
 결정됩니다(신호에 인코딩하지 않음). 평가지표는 dashboard와 CSV로 제공합니다.
 
 ## AI 모델 입력
@@ -14,7 +14,7 @@ DroneSim가 보내는 **22채널 EEG frame**(JSON)을 버퍼링해 **4초(1000�
   단일 라이브 윈도우에는 적용하지 않음.
 - 채널 순서는 `mappings/sim_to_model.json` / UE `EegTypes.h`와 일치해야 함.
 
-> PyTorch/numpy 또는 체크포인트가 없으면 서버는 그대로 뜨되 **모델 없이 STOP**을 돌려줍니다
+> PyTorch/numpy 또는 체크포인트가 없으면 서버는 그대로 뜨되 **동작을 보내지 않습니다**
 > (`inference.StreamClassifier`). torch 설치 시 자동으로 실모델 경로로 전환됩니다.
 
 ## 실행
@@ -32,7 +32,7 @@ python -m eeg_server
 
 ```powershell
 python tests/test_protocol.py        # JSON wire round-trip
-python tests/test_model_runtime.py   # 윈도우 버퍼 + MI→동작 매핑 + STOP 폴백
+python tests/test_model_runtime.py   # 윈도우 버퍼 + MI→동작 매핑
 python tests/test_metrics.py
 ```
 

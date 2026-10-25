@@ -4,7 +4,7 @@
 incoming EEG frames into the model's 4 s window and returns the UnifiedEEGNet decision
 (:mod:`eeg_server.model_runtime`). The action is ALWAYS the model's output - it is never
 encoded into or recovered from the raw signal. While the window is still filling, or when
-PyTorch/the checkpoint are unavailable, it reports STOP.
+PyTorch/the checkpoint are unavailable, there is no result and the drone hovers.
 """
 
 from __future__ import annotations
@@ -39,15 +39,8 @@ def get_shared_model() -> TorchModel:
     return _SHARED_MODEL
 
 
-def stop_result() -> InferenceResult:
-    """A fully-confident STOP (window still filling, or no model available)."""
-    probabilities = {action: (1.0 if action == config.STOP_ACTION else 0.0)
-                     for action in config.ACTION_PROB_ORDER}
-    return InferenceResult(action=config.STOP_ACTION, confidence=1.0, probabilities=probabilities)
-
-
 class StreamClassifier:
-    """Per-connection classifier: the AI model over a sliding window (else STOP)."""
+    """Per-connection classifier: the AI model over a sliding window."""
 
     def __init__(self, model: Optional[TorchModel] = None) -> None:
         self._model = model if model is not None else get_shared_model()
@@ -61,13 +54,13 @@ class StreamClassifier:
     def using_model(self) -> bool:
         return self._model.available
 
-    def classify(self, data: list[float], channel_count: int) -> InferenceResult:
-        """Buffers one frame and returns the model's decision once the window is full."""
+    def classify(self, data: list[float], channel_count: int) -> Optional[InferenceResult]:
+        """Buffers one frame; returns the model's decision once the window is full, else None."""
         if not self._model.available:
-            return stop_result()  # no model -> the drone holds until a model is available
+            return None
 
         self._buffer.push(data, channel_count)
         if not self._buffer.is_full():
-            return stop_result()  # warming up: hold STOP until the first full window
+            return None
         action, confidence, probabilities = mi_probs_to_action(self._model.predict(self._buffer.matrix()))
         return InferenceResult(action=action, confidence=confidence, probabilities=probabilities)

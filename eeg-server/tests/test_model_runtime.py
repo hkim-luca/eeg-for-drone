@@ -48,10 +48,10 @@ def test_mi_probs_map_confident_class_to_its_action() -> None:
     assert set(probs) == set(config.ACTION_PROB_ORDER)
 
 
-def test_mi_probs_map_uncertain_window_to_stop() -> None:
-    action, _, probs = mi_probs_to_action([0.25, 0.25, 0.25, 0.25])
-    assert action == config.STOP_ACTION
-    assert probs[config.STOP_ACTION] > max(probs[a] for a in config.ACTION_PROB_ORDER if a != config.STOP_ACTION)
+def test_mi_probs_keep_only_movement_actions() -> None:
+    action, _, probs = mi_probs_to_action([0.1, 0.2, 0.6, 0.1])
+    assert action == "FORWARD"  # feet
+    assert list(probs) == list(config.ACTION_PROB_ORDER)
 
 
 def test_stream_classifier_warms_up_then_uses_model() -> None:
@@ -61,25 +61,22 @@ def test_stream_classifier_warms_up_then_uses_model() -> None:
 
     frames_needed = config.WINDOW_SAMPLES // _FRAME_SAMPLES
     for _ in range(frames_needed - 1):
-        result = classifier.classify(_frame(), config.CHANNEL_COUNT)
-        assert result.action == config.STOP_ACTION  # warming up
+        assert classifier.classify(_frame(), config.CHANNEL_COUNT) is None  # warming up
     result = classifier.classify(_frame(), config.CHANNEL_COUNT)
     assert result.action == "BACKWARD"
 
 
-def test_stream_classifier_holds_stop_without_model() -> None:
+def test_stream_classifier_sends_nothing_without_model() -> None:
     classifier = StreamClassifier(model=TorchModel(predictor=None, available=False))
-    # no model available -> the drone holds STOP (action is never faked from the signal)
-    result = classifier.classify(_frame(), config.CHANNEL_COUNT)
-    assert result.action == config.STOP_ACTION
-    assert result.probabilities[config.STOP_ACTION] == 1.0
+    # no model available -> no action (it is never faked from the signal)
+    assert classifier.classify(_frame(), config.CHANNEL_COUNT) is None
 
 
 if __name__ == "__main__":
     test_window_buffer_fills_after_enough_frames()
     test_window_buffer_ignores_mismatched_channel_count()
     test_mi_probs_map_confident_class_to_its_action()
-    test_mi_probs_map_uncertain_window_to_stop()
+    test_mi_probs_keep_only_movement_actions()
     test_stream_classifier_warms_up_then_uses_model()
-    test_stream_classifier_holds_stop_without_model()
+    test_stream_classifier_sends_nothing_without_model()
     print("test_model_runtime: OK")
