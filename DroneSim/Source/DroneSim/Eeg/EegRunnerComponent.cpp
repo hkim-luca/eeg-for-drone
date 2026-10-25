@@ -4,6 +4,8 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/PlatformTime.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "ScenarioLog.h"
 
 namespace
@@ -28,6 +30,35 @@ UEegRunnerComponent::UEegRunnerComponent()
     PrimaryComponentTick.bStartWithTickEnabled = false;
 }
 
+auto UEegRunnerComponent::ResolveSettings() const -> FEegLaunchSettings
+{
+    FEegLaunchSettings Settings;
+    Settings.ServerHost = ServerHost;
+    Settings.ServerPort = ServerPort;
+    Settings.OpenBciSerialPort = OpenBciSerialPort;
+    Settings.OpenBciMappingFile = OpenBciMappingFile;
+
+    const TCHAR *CommandLine = FCommandLine::Get();
+    FString Server;
+    if (FParse::Value(CommandLine, TEXT("EegServer="), Server))
+    {
+        FString Host;
+        FString Port;
+        if (Server.Split(TEXT(":"), &Host, &Port, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
+        {
+            Settings.ServerHost = Host;
+            Settings.ServerPort = FCString::Atoi(*Port);
+        }
+        else
+        {
+            Settings.ServerHost = Server;
+        }
+    }
+    FParse::Value(CommandLine, TEXT("EegSerial="), Settings.OpenBciSerialPort);
+    FParse::Value(CommandLine, TEXT("EegMapping="), Settings.OpenBciMappingFile);
+    return Settings;
+}
+
 void UEegRunnerComponent::Start(float InMoveSpeed)
 {
     CurrentAction = EScenarioAction::Stop;
@@ -41,8 +72,9 @@ void UEegRunnerComponent::Start(float InMoveSpeed)
     bWarnedNoPawn = false;
     MoveSpeed = InMoveSpeed;
 
-    Source.Start(OpenBciSerialPort, OpenBciMappingFile);
-    Client.Connect(ServerHost, ServerPort);
+    const FEegLaunchSettings Settings = ResolveSettings();
+    Source.Start(Settings.OpenBciSerialPort, Settings.OpenBciMappingFile);
+    Client.Connect(Settings.ServerHost, Settings.ServerPort);
 
     if (ACharacter *Character = Cast<ACharacter>(GetControlledPawn()))
     {
@@ -50,8 +82,8 @@ void UEegRunnerComponent::Start(float InMoveSpeed)
     }
 
     FScenarioLog::Info(FString::Printf(TEXT("EEG running mode start: server=%s:%d channels=%d rate=%dHz speed=%.0f"),
-                                       *ServerHost, ServerPort, EegConfig::ChannelCount, EegConfig::SampleRateHz,
-                                       InMoveSpeed));
+                                       *Settings.ServerHost, Settings.ServerPort, EegConfig::ChannelCount,
+                                       EegConfig::SampleRateHz, InMoveSpeed));
 
     PublishActionLabel(ConnectingLabel);
     bRunning = true;

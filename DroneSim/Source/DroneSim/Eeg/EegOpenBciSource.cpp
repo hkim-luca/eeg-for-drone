@@ -8,7 +8,11 @@
 #include "Serialization/JsonSerializer.h"
 
 #if WITH_BRAINFLOW
-#include "board_shim.h"
+// BrainFlow's C API only (plain C types across the DLL boundary); the C++ BoardShim wrapper
+// passes std::string by value, which arrived corrupted inside the UE process and made
+// start_stream fail with UNABLE_TO_OPEN_PORT (code 2) while the same calls worked standalone.
+#include "board_controller.h"
+#include "board_info_getter.h"
 #include "brainflow_constants.h"
 #endif
 
@@ -102,9 +106,16 @@ auto DetectFtdiSerialPort() -> FString
 
 void FEegOpenBciSource::BuildChannelMap(const FString &MappingFilePath)
 {
-    const FString Path = MappingFilePath.IsEmpty()
-                             ? FPaths::Combine(FPaths::ProjectDir(), TEXT("../mappings/openbci_to_sim.json"))
-                             : MappingFilePath;
+    // packaged builds ship the map at <ProjectDir>/mappings; the editor reads the repo root copy
+    FString Path = MappingFilePath;
+    if (Path.IsEmpty())
+    {
+        Path = FPaths::Combine(FPaths::ProjectDir(), TEXT("mappings/openbci_to_sim.json"));
+        if (!FPaths::FileExists(Path))
+        {
+            Path = FPaths::Combine(FPaths::ProjectDir(), TEXT("../mappings/openbci_to_sim.json"));
+        }
+    }
 
     // defaults if the file is missing/malformed: Cyton 8ch, generic names, no model mapping
     BoardChannelCount = DefaultBoardChannels;
@@ -192,14 +203,8 @@ void FEegOpenBciSource::TryConnect()
     if (!bBrainFlowLoggerReady)
     {
         bBrainFlowLoggerReady = true;
-        try
-        {
-            BoardShim::set_log_file(TCHAR_TO_UTF8(*(FPaths::ProjectLogDir() / TEXT("brainflow.log"))));
-            BoardShim::enable_dev_board_logger();
-        }
-        catch (const BrainFlowException &)
-        {
-        }
+        set_log_file_board_controller(TCHAR_TO_UTF8(*(FPaths::ProjectLogDir() / TEXT("brainflow.log"))));
+        set_log_level_board_controller(0); // trace
     }
 
     FString Port = SerialPort;
@@ -217,32 +222,51 @@ void FEegOpenBciSource::TryConnect()
         FScenarioLog::Info(FString::Printf(TEXT("OpenBCI serial port auto-detected: %s"), *Port));
     }
 
-    try
-    {
-        const int BoardId = BoardIdForChannels(BoardChannelCount);
-        BrainFlowInputParams Params;
-        Params.serial_port = TCHAR_TO_UTF8(*Port);
-        auto *Board = new BoardShim(BoardId, Params);
-        BoardHandle = Board; // set before prepare so a failed prepare/start still gets released
-        Board->prepare_session();
-        Board->start_stream();
+    BoardId = BoardIdForChannels(BoardChannelCount);
+    // BrainFlow identifies a session by these parsed values, so prepare/start/read/release
+    // must all pass the same JSON
+    ParamsJson = FString::Printf(
+        TEXT("{\"serial_port\":\"%s\",\"ip_protocol\":0,\"ip_port\":0,\"ip_port_aux\":0,\"ip_port_anc\":0,"
+             "\"other_info\":\"\",\"mac_address\":\"\",\"ip_address\":\"\",\"ip_address_aux\":\"\","
+             "\"ip_address_anc\":\"\",\"timeout\":0,\"serial_number\":\"\",\"file\":\"\",\"file_aux\":\"\","
+             "\"file_anc\":\"\",\"master_board\":-100}"),
+        *Port);
+    const FTCHARToUTF8 Json(*ParamsJson);
 
-        EegChannelRows.Reset();
-        for (int Row : BoardShim::get_eeg_channels(BoardId))
-        {
-            EegChannelRows.Add(Row);
-        }
-        bStreaming = true;
-        FScenarioLog::Info(FString::Printf(TEXT("OpenBCI streaming on %s (board %d): %d EEG channels @ %dHz"),
-                                           *Port, BoardId, EegChannelRows.Num(), EegConfig::SampleRateHz));
-    }
-    catch (const BrainFlowException &Error)
+    int Result = prepare_session(BoardId, Json.Get());
+    if (Result == static_cast<int>(BrainFlowExitCodes::STATUS_OK))
     {
-        FScenarioLog::Error(FString::Printf(TEXT("OpenBCI connect failed on %s: %hs (code %d); retrying in %.0fs"),
-                                            *Port, Error.what(), Error.exit_code, RetryInterval));
+        bSessionPrepared = true;
+        Result = start_stream(StreamBufferSamples, "", BoardId, Json.Get());
+    }
+    if (Result != static_cast<int>(BrainFlowExitCodes::STATUS_OK))
+    {
+        FScenarioLog::Error(FString::Printf(TEXT("OpenBCI connect failed on %s (BrainFlow code %d); retrying in %.0fs"),
+                                            *Port, Result, RetryInterval));
         ReleaseBoard();
         bStreaming = false;
+        return;
     }
+
+    constexpr int32 MaxRows = 64;
+    int Channels[MaxRows] = {};
+    int ChannelCount = 0;
+    get_eeg_channels(BoardId, static_cast<int>(BrainFlowPresets::DEFAULT_PRESET), Channels, &ChannelCount);
+    EegChannelRows.Reset();
+    for (int32 Index = 0; Index < ChannelCount; ++Index)
+    {
+        EegChannelRows.Add(Channels[Index]);
+    }
+    int Row = INDEX_NONE;
+    get_timestamp_channel(BoardId, static_cast<int>(BrainFlowPresets::DEFAULT_PRESET), &Row);
+    TimestampRow = Row;
+    int Rows = 0;
+    get_num_rows(BoardId, static_cast<int>(BrainFlowPresets::DEFAULT_PRESET), &Rows);
+    NumRows = Rows;
+
+    bStreaming = true;
+    FScenarioLog::Info(FString::Printf(TEXT("OpenBCI streaming on %s (board %d): %d EEG channels @ %dHz"), *Port,
+                                       BoardId, EegChannelRows.Num(), EegConfig::SampleRateHz));
 #else
     bWantConnection = false; // nothing to retry without the SDK
     FScenarioLog::Error(TEXT("BrainFlow SDK not linked (WITH_BRAINFLOW=0): no EEG will be streamed. "
@@ -253,22 +277,13 @@ void FEegOpenBciSource::TryConnect()
 void FEegOpenBciSource::ReleaseBoard()
 {
 #if WITH_BRAINFLOW
-    if (BoardHandle != nullptr)
+    if (bSessionPrepared)
     {
-        auto *Board = static_cast<BoardShim *>(BoardHandle);
-        // release_session unregisters the board in BrainFlow's process-wide registry even when
-        // prepare/start only partly succeeded; skipping it leaks the registration and the next
-        // attempt fails with ANOTHER_BOARD_IS_CREATED (code 16). It also stops any running stream,
-        // so no separate stop_stream is needed. Swallow errors (e.g. board was never prepared).
-        try
-        {
-            Board->release_session();
-        }
-        catch (const BrainFlowException &)
-        {
-        }
-        delete Board;
-        BoardHandle = nullptr;
+        // release_session unregisters the board in BrainFlow's process-wide registry and stops a
+        // running stream; skipping it after a partial start leaks the registration and the next
+        // attempt fails with ANOTHER_BOARD_IS_CREATED (code 16)
+        release_session(BoardId, TCHAR_TO_UTF8(*ParamsJson));
+        bSessionPrepared = false;
     }
 #endif
 }
@@ -280,7 +295,7 @@ void FEegOpenBciSource::Stop()
     ReleaseBoard();
 }
 
-void FEegOpenBciSource::Tick(float DeltaTime, TArray<FEegFrame> &OutFrames)
+void FEegOpenBciSource::Tick(float DeltaTime, TArray<FEegFrame> &OutFrames, TArray<double> *OutRaw)
 {
     if (!bWantConnection)
     {
@@ -299,23 +314,27 @@ void FEegOpenBciSource::Tick(float DeltaTime, TArray<FEegFrame> &OutFrames)
     }
 
 #if WITH_BRAINFLOW
-    auto *Board = static_cast<BoardShim *>(BoardHandle);
-    BrainFlowArray<double, 2> Data;
-    try
+    const FTCHARToUTF8 Json(*ParamsJson);
+    const int Preset = static_cast<int>(BrainFlowPresets::DEFAULT_PRESET);
+    int SampleCount = 0;
+    int Result = get_board_data_count(Preset, &SampleCount, BoardId, Json.Get());
+    if (Result == static_cast<int>(BrainFlowExitCodes::STATUS_OK) && SampleCount > 0)
     {
-        Data = Board->get_board_data();
+        // row-major [NumRows][SampleCount], same layout BoardShim::get_board_data builds
+        DataScratch.SetNumUninitialized(NumRows * SampleCount);
+        Result = get_board_data(SampleCount, Preset, DataScratch.GetData(), BoardId, Json.Get());
     }
-    catch (const BrainFlowException &Error)
+    if (Result != static_cast<int>(BrainFlowExitCodes::STATUS_OK))
     {
-        FScenarioLog::Error(FString::Printf(TEXT("OpenBCI read error: %hs (code %d); reconnecting"), Error.what(),
-                                            Error.exit_code));
+        FScenarioLog::Error(FString::Printf(TEXT("OpenBCI read error (BrainFlow code %d); reconnecting"), Result));
         ReleaseBoard();
         bStreaming = false;
         SecondsSinceRetry = 0.0f;
         return;
     }
-
-    const int32 SampleCount = Data.get_size(1);
+    auto At = [this, SampleCount](int32 Row, int32 Sample) -> double {
+        return DataScratch[Row * SampleCount + Sample];
+    };
     const int32 BoardChannels = FMath::Min(EegChannelRows.Num(), BoardChannelCount);
 
     TArray<float> BoardSample;
@@ -335,7 +354,7 @@ void FEegOpenBciSource::Tick(float DeltaTime, TArray<FEegFrame> &OutFrames)
         }
         for (int32 Channel = 0; Channel < BoardChannels; ++Channel)
         {
-            const float Value = static_cast<float>(Data.at(EegChannelRows[Channel], Sample));
+            const float Value = static_cast<float>(At(EegChannelRows[Channel], Sample));
             BoardSample[Channel] = Value;
             const int32 ModelIndex = OpenBciToModelIndex[Channel];
             if (ModelIndex != INDEX_NONE)
@@ -345,9 +364,19 @@ void FEegOpenBciSource::Tick(float DeltaTime, TArray<FEegFrame> &OutFrames)
         }
         AppendGraphSample(BoardSample);
         AppendFrameSample(ModelSample, OutFrames);
+
+        if (OutRaw != nullptr)
+        {
+            OutRaw->Add(TimestampRow != INDEX_NONE ? At(TimestampRow, Sample) : 0.0);
+            for (const float Value : BoardSample)
+            {
+                OutRaw->Add(Value);
+            }
+        }
     }
 #else
     (void)OutFrames;
+    (void)OutRaw;
 #endif
 }
 

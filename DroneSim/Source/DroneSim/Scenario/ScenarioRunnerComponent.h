@@ -3,6 +3,7 @@
 #include "Components/ActorComponent.h"
 #include "CoreMinimal.h"
 #include "DronePhysics.h"
+#include "EegOpenBciSource.h"
 #include "ScenarioTypes.h"
 
 #include "ScenarioRunnerComponent.generated.h"
@@ -31,6 +32,9 @@ struct FPositionSample
  *  The CSV at Saved/Recordings/<FileName>.csv is created when Start() is called and
  *  appended to every time the action changes (action-to-action transitions and the
  *  action/WAIT boundary), so most of the recording is on disk before playback ends.
+ *  In parallel the raw OpenBCI EEG (board channels, electrode names from the channel map)
+ *  is written to Saved/Recordings/<FileName>_eeg.csv, each sample tagged with the action
+ *  label active when it arrived - labelled training data for the AI model.
  */
 UCLASS(ClassGroup = (Scenario), meta = (BlueprintSpawnableComponent))
 class UScenarioRunnerComponent : public UActorComponent
@@ -75,7 +79,35 @@ class UScenarioRunnerComponent : public UActorComponent
 
     void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 
+    /** Releases the OpenBCI session when play ends mid-run */
+    void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
   private:
+    /** Opens OpenBCI with the EEG runner's settings and creates the EEG CSV */
+    void BeginEegRecording(const FString &FileName);
+
+    /** Pulls new OpenBCI samples and buffers them as CSV rows under the current action label */
+    void SampleEeg(float DeltaTime);
+
+    /** Appends buffered EEG rows to EegRecordingFilePath */
+    void FlushEeg();
+
+    /** Raw OpenBCI source used while recording */
+    FEegOpenBciSource EegSource;
+
+    /** Absolute path of the EEG CSV this run; empty when EEG recording is unavailable */
+    FString EegRecordingFilePath;
+
+    /** EEG CSV rows not yet written */
+    FString PendingEegCsv;
+
+    /** Reused scratch buffers for EegSource.Tick */
+    TArray<FEegFrame> EegFrameScratch;
+    TArray<double> EegRawScratch;
+
+    /** EEG samples written this run, for the end-of-run log */
+    int64 EegSampleCount = 0;
+
     /** Playback phase: applying the current step's action, or settling before the next step */
     enum class EPhase : uint8
     {

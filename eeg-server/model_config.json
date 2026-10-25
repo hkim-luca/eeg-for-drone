@@ -1,0 +1,22 @@
+{
+  "_comment": "code/ 학습모델을 서버가 서빙하기 위한 설정. 코드 수정 없이 이 파일만 바꾼다.",
+  "model_class": "UnifiedEEGNet",
+  "checkpoint": "checkpoints/loso_target_A01_best.pth",
+  "n_channels": 22,
+  "n_classes": 4,
+  "sample_rate_hz": 250,
+  "window_samples": 1000,
+  "mi_classes": ["left_hand", "right_hand", "feet", "tongue"],
+  "channel_names": [
+    "Fz", "FC3", "FC1", "FCz", "FC2", "FC4", "C5", "C3",
+    "C1", "Cz", "C2", "C4", "C6", "CP3", "CP1", "CPz",
+    "CP2", "CP4", "P1", "Pz", "P2", "POz"
+  ],
+  "mi_to_action": {
+    "left_hand": "LEFT",
+    "right_hand": "RIGHT",
+    "feet": "FORWARD",
+    "tongue": "BACKWARD"
+  },
+  "stop_bias": 1.0
+}

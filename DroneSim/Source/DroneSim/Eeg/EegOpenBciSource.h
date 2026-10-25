@@ -31,8 +31,9 @@ class FEegOpenBciSource
     void Stop();
 
     /** Pulls all samples available from the board (reconnecting if needed) and appends every
-     *  completed frame to OutFrames. */
-    void Tick(float DeltaTime, TArray<FEegFrame> &OutFrames);
+     *  completed frame to OutFrames. If OutRaw is given it also receives every acquired sample
+     *  as [board time (unix s), ch0 .. ch(ChannelCount-1)] in board order, sample-major. */
+    void Tick(float DeltaTime, TArray<FEegFrame> &OutFrames, TArray<double> *OutRaw = nullptr);
 
     /** True while the board session is open and streaming (false while reconnecting). */
     auto IsStreaming() const -> bool;
@@ -77,6 +78,9 @@ class FEegOpenBciSource
     /** BrainFlow EEG row indices within a get_board_data() result (one per board channel). */
     TArray<int32> EegChannelRows;
 
+    /** BrainFlow timestamp row (unix seconds) within a get_board_data() result. */
+    int32 TimestampRow = INDEX_NONE;
+
     /** Acquired channel count from the mapping: 8 = Cyton, 16 = Cyton+Daisy. */
     int32 BoardChannelCount = 8;
 
@@ -104,6 +108,21 @@ class FEegOpenBciSource
     /** Seconds accumulated since the last connect attempt; gates the retry interval. */
     float SecondsSinceRetry = 0.0f;
 
-    /** Opaque BrainFlow BoardShim* (kept void* so BrainFlow headers stay in the .cpp). */
-    void *BoardHandle = nullptr;
+    /** BrainFlow board id of the open session (Cyton / Cyton+Daisy). */
+    int32 BoardId = 0;
+
+    /** BrainFlow input params JSON identifying the session; passed to every C API call. */
+    FString ParamsJson;
+
+    /** True after prepare_session succeeded, until release_session. */
+    bool bSessionPrepared = false;
+
+    /** Rows of a get_board_data() result for this board. */
+    int32 NumRows = 0;
+
+    /** Reused buffer for get_board_data() (row-major [NumRows][samples]). */
+    TArray<double> DataScratch;
+
+    /** BrainFlow ring buffer size in samples (~3 min at 250 Hz). */
+    static constexpr int32 StreamBufferSamples = 45000;
 };

@@ -107,27 +107,59 @@ class TorchModel:
         return self._predictor(window)
 
 
+def _warn_config_mismatch(payload: dict) -> None:
+    """Logs where model_config.json disagrees with the metadata stored in the checkpoint."""
+    import json
+
+    expected = {
+        "model_class": config.MODEL_CLASS,
+        "n_channels": config.CHANNEL_COUNT,
+        "n_classes": config.MODEL_N_CLASSES,
+        "n_samples": config.WINDOW_SAMPLES,
+    }
+    for key, value in expected.items():
+        if key in payload and payload[key] != value:
+            _LOGGER.warning("model_config.json %s=%s but checkpoint has %s", key, value, payload[key])
+
+    meta = payload.get("checkpoint_metadata")
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except ValueError:
+            meta = None
+    if isinstance(meta, dict):
+        rate = meta.get("sampling_rate_hz")
+        if rate is not None and rate != config.SAMPLE_RATE_HZ:
+            _LOGGER.warning("model_config.json sample_rate_hz=%s but checkpoint has %s", config.SAMPLE_RATE_HZ, rate)
+        _LOGGER.info("checkpoint preprocessing: alignment=%s band=%s-%s Hz", meta.get("alignment"),
+                     meta.get("fmin_hz"), meta.get("fmax_hz"))
+
+
 def load_model(checkpoint_path=config.MODEL_CHECKPOINT) -> TorchModel:
-    """Loads the UnifiedEEGNet checkpoint; returns an unavailable stub on any failure."""
+    """Loads the model named by config.MODEL_CLASS; returns an unavailable stub on failure."""
     try:
+        import importlib
         import sys
         from pathlib import Path
 
         import numpy as np
         import torch
 
-        # code/model.py is not a package; add it to the path for the import.
+        # code/model.py is external and not a package; add it to the path and resolve the
+        # configured class by name so swapping the model is config-only (no code change here).
         code_dir = Path(__file__).resolve().parents[1] / "code"
         if str(code_dir) not in sys.path:
             sys.path.insert(0, str(code_dir))
-        from model import UnifiedEEGNet  # type: ignore
+        model_cls = getattr(importlib.import_module("model"), config.MODEL_CLASS)
 
         if not Path(checkpoint_path).exists():
             raise FileNotFoundError(checkpoint_path)
 
         device = torch.device("cpu")
-        net = UnifiedEEGNet(n_classes=config.MODEL_N_CLASSES, n_channels=config.CHANNEL_COUNT).to(device)
+        net = model_cls(n_classes=config.MODEL_N_CLASSES, n_channels=config.CHANNEL_COUNT).to(device)
         payload = torch.load(checkpoint_path, map_location=device)
+        if isinstance(payload, dict):
+            _warn_config_mismatch(payload)
         state = payload.get("model_state_dict", payload) if isinstance(payload, dict) else payload
         net.load_state_dict(state, strict=True)
         net.eval()
@@ -145,8 +177,8 @@ def load_model(checkpoint_path=config.MODEL_CHECKPOINT) -> TorchModel:
                 probs = torch.softmax(logits, dim=1).squeeze(0).tolist()
             return [float(p) for p in probs]
 
-        _LOGGER.info("AI model loaded: %s (UnifiedEEGNet, %d ch, %d samples)",
-                     Path(checkpoint_path).name, config.CHANNEL_COUNT, config.WINDOW_SAMPLES)
+        _LOGGER.info("AI model loaded: %s (%s, %d ch, %d samples)",
+                     Path(checkpoint_path).name, config.MODEL_CLASS, config.CHANNEL_COUNT, config.WINDOW_SAMPLES)
         return TorchModel(predictor=predictor, available=True)
     except Exception as error:  # noqa: BLE001 - any failure must degrade gracefully
         _LOGGER.warning("AI model unavailable (%s); the drone will hold STOP until a model loads", error)

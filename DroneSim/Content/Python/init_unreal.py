@@ -44,7 +44,7 @@ def _abs_dest(asset: dict[str, Any]) -> str:
 
 def _present(asset: dict[str, Any]) -> bool:
     dest = _abs_dest(asset)
-    return os.path.exists(dest)
+    return os.path.exists(dest) and os.path.getsize(dest) == int(asset["size"])
 
 
 def _sha256(path: str) -> str:

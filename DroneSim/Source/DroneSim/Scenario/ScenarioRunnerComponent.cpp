@@ -1,5 +1,7 @@
 #include "ScenarioRunnerComponent.h"
 #include "DronePhysicsConfig.h"
+#include "EegRunnerComponent.h"
+#include "GameFramework/Actor.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
@@ -41,6 +43,7 @@ void UScenarioRunnerComponent::Start(const TArray<FScenarioStep> &InSteps, float
     SettleElapsed = 0.0f;
 
     BeginRecordingFile(InFileName);
+    BeginEegRecording(InFileName);
 
     // apply the simulated drone flight physics for the run
     const FDronePhysicsSettings &ConfigSettings = UDronePhysicsConfig::Get()->Settings;
@@ -77,6 +80,7 @@ void UScenarioRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
     UpdatePlayback(DeltaTime);
     Physics.Tick(DeltaTime);
     SamplePosition();
+    SampleEeg(DeltaTime);
 
     if (CurrentStepIndex >= Steps.Num())
     {
@@ -84,10 +88,105 @@ void UScenarioRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
         SetComponentTickEnabled(false);
         Physics.End();
         FlushSamples();
-        FScenarioLog::Info(
-            FString::Printf(TEXT("Playback finished: elapsed=%.2fs recording=%s"), Elapsed, *RecordingFilePath));
+        FlushEeg();
+        EegSource.Stop();
+        FScenarioLog::Info(FString::Printf(TEXT("Playback finished: elapsed=%.2fs recording=%s eeg=%s (%lld samples)"),
+                                           Elapsed, *RecordingFilePath, *EegRecordingFilePath, EegSampleCount));
         OnScenarioFinished.Broadcast();
     }
+}
+
+void UScenarioRunnerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    FlushEeg();
+    EegSource.Stop();
+    Super::EndPlay(EndPlayReason);
+}
+
+void UScenarioRunnerComponent::BeginEegRecording(const FString &FileName)
+{
+    EegRecordingFilePath.Reset();
+    PendingEegCsv.Reset();
+    EegSampleCount = 0;
+
+    // same OpenBCI settings (Game.ini + launch options) as EEG running mode
+    const AActor *Owner = GetOwner();
+    const UEegRunnerComponent *EegRunner = Owner != nullptr ? Owner->FindComponentByClass<UEegRunnerComponent>() : nullptr;
+    const FEegLaunchSettings Settings =
+        EegRunner != nullptr ? EegRunner->ResolveSettings() : GetDefault<UEegRunnerComponent>()->ResolveSettings();
+    EegSource.Start(Settings.OpenBciSerialPort, Settings.OpenBciMappingFile);
+
+    if (RecordingFilePath.IsEmpty())
+    {
+        return; // the recording directory is unusable; BeginRecordingFile already logged why
+    }
+
+    EegRecordingFilePath =
+        FPaths::GetPath(RecordingFilePath) / (FPaths::GetBaseFilename(RecordingFilePath) + TEXT("_eeg.csv"));
+    FString Header = TEXT("board_time,elapsed,action");
+    for (const FString &Name : EegSource.GetChannelNames())
+    {
+        Header += TEXT(",") + Name;
+    }
+    Header += TEXT("\n");
+
+    if (!FFileHelper::SaveStringToFile(Header, *EegRecordingFilePath))
+    {
+        FScenarioLog::Error(FString::Printf(TEXT("Failed to create EEG recording file: %s (%s)"), *EegRecordingFilePath,
+                                            *FScenarioLog::SystemError()));
+        EegRecordingFilePath.Reset();
+        return;
+    }
+    FScenarioLog::Info(FString::Printf(TEXT("EEG recording to %s"), *EegRecordingFilePath));
+}
+
+void UScenarioRunnerComponent::SampleEeg(float DeltaTime)
+{
+    if (EegRecordingFilePath.IsEmpty())
+    {
+        return;
+    }
+
+    EegRawScratch.Reset();
+    EegSource.Tick(DeltaTime, EegFrameScratch, &EegRawScratch);
+    EegFrameScratch.Reset(); // model frames are not needed while recording
+
+    // OutRaw layout: [board time, ch0..chN-1] per sample
+    const int32 Stride = 1 + EegSource.GetChannelCount();
+    for (int32 Base = 0; Base + Stride <= EegRawScratch.Num(); Base += Stride)
+    {
+        PendingEegCsv += FString::Printf(TEXT("%.6f,%.3f,%s"), EegRawScratch[Base], Elapsed, *LastActionLabel);
+        for (int32 Channel = 1; Channel < Stride; ++Channel)
+        {
+            PendingEegCsv += FString::Printf(TEXT(",%.3f"), EegRawScratch[Base + Channel]);
+        }
+        PendingEegCsv += TEXT("\n");
+        ++EegSampleCount;
+    }
+
+    // bound memory during long actions; action changes flush too
+    constexpr int32 FlushThresholdChars = 256 * 1024;
+    if (PendingEegCsv.Len() > FlushThresholdChars)
+    {
+        FlushEeg();
+    }
+}
+
+void UScenarioRunnerComponent::FlushEeg()
+{
+    if (EegRecordingFilePath.IsEmpty() || PendingEegCsv.IsEmpty())
+    {
+        return;
+    }
+
+    if (!FFileHelper::SaveStringToFile(PendingEegCsv, *EegRecordingFilePath, FFileHelper::EEncodingOptions::AutoDetect,
+                                       &IFileManager::Get(), FILEWRITE_Append))
+    {
+        FScenarioLog::Error(FString::Printf(TEXT("Failed to append EEG recording: %s (%s)"), *EegRecordingFilePath,
+                                            *FScenarioLog::SystemError()));
+        EegRecordingFilePath.Reset();
+    }
+    PendingEegCsv.Reset();
 }
 
 void UScenarioRunnerComponent::UpdatePlayback(float DeltaTime)
@@ -163,6 +262,7 @@ void UScenarioRunnerComponent::PublishActionLabel(const FString &Label)
 
     // append everything sampled under the previous action before switching to the new one
     FlushSamples();
+    FlushEeg();
 
     LastActionLabel = Label;
     const APawn *Pawn = GetControlledPawn();

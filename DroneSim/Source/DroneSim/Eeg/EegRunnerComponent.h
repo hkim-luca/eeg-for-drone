@@ -13,6 +13,15 @@ class APawn;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEegActionChanged, const FString &, ActionLabel);
 
+/** Effective EEG link settings: ini values (Config=Game) with launch-option overrides applied */
+struct FEegLaunchSettings
+{
+    FString ServerHost;
+    int32 ServerPort = 9800;
+    FString OpenBciSerialPort;
+    FString OpenBciMappingFile;
+};
+
 /**
  *  Drives the EEG running mode on the owning player controller's pawn:
  *  every tick it pumps the OpenBCI EEG device, streams the completed
@@ -23,13 +32,17 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEegActionChanged, const FString &
  *  inference-to-control latency. Runs until Stop(); the connection reconnects
  *  automatically if the server restarts.
  */
-UCLASS(ClassGroup = (Eeg), meta = (BlueprintSpawnableComponent))
+UCLASS(ClassGroup = (Eeg), Config = Game, meta = (BlueprintSpawnableComponent))
 class UEegRunnerComponent : public UActorComponent
 {
     GENERATED_BODY()
 
   public:
     UEegRunnerComponent();
+
+    /** Settings actually used: the Config properties below, overridden by launch options
+     *  -EegServer=host[:port], -EegSerial=COMx, -EegMapping=path */
+    auto ResolveSettings() const -> FEegLaunchSettings;
 
     /** Starts running mode; InMoveSpeed > 0 overrides the pawn's max speed (cm/s) */
     void Start(float InMoveSpeed);
@@ -84,22 +97,22 @@ class UEegRunnerComponent : public UActorComponent
     UPROPERTY(BlueprintAssignable, Category = "EEG")
     FOnEegActionChanged OnActionChanged;
 
-    /** Host of the Python EEG server */
-    UPROPERTY(EditAnywhere, Category = "EEG")
+    /** Host of the Python EEG server ([/Script/DroneSim.EegRunnerComponent] in Game.ini) */
+    UPROPERTY(EditAnywhere, Config, Category = "EEG")
     FString ServerHost = TEXT("127.0.0.1");
 
     /** TCP port of the Python EEG server */
-    UPROPERTY(EditAnywhere, Category = "EEG")
+    UPROPERTY(EditAnywhere, Config, Category = "EEG")
     int32 ServerPort = 9800;
 
     /** OpenBCI Cyton dongle serial port (e.g. "COM3") passed to BrainFlow. Leave empty (or
      *  "auto") to auto-detect the FTDI serial port on Windows. */
-    UPROPERTY(EditAnywhere, Category = "EEG")
+    UPROPERTY(EditAnywhere, Config, Category = "EEG")
     FString OpenBciSerialPort;
 
-    /** Optional override for the board-channel -> electrode map; empty uses
-     *  <ProjectDir>/../mappings/openbci_to_sim.json */
-    UPROPERTY(EditAnywhere, Category = "EEG")
+    /** Board-channel -> electrode map file; empty uses mappings/openbci_to_sim.json shipped
+     *  with the build (<ProjectDir>/mappings), falling back to the repo root in the editor */
+    UPROPERTY(EditAnywhere, Config, Category = "EEG")
     FString OpenBciMappingFile;
 
   private:

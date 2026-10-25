@@ -34,6 +34,18 @@ public class DroneSim : ModuleRules
 		});
 
 		SetupBrainFlow(Target);
+		StageChannelMap(Target);
+	}
+
+	// Ships the editable OpenBCI channel map as a loose file at <ProjectDir>/mappings in
+	// packaged builds; the editor reads it from the repository root instead.
+	private void StageChannelMap(ReadOnlyTargetRules Target)
+	{
+		string MapFile = Path.Combine(ModuleDirectory, "..", "..", "..", "mappings", "openbci_to_sim.json");
+		if (Target.Type != TargetType.Editor && File.Exists(MapFile))
+		{
+			RuntimeDependencies.Add("$(ProjectDir)/mappings/openbci_to_sim.json", MapFile, StagedFileType.NonUFS);
+		}
 	}
 
 	// Links the BrainFlow C++ SDK for OpenBCI acquisition. Drop the SDK's compiled C++
