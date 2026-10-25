@@ -1,10 +1,10 @@
-/* Polls /api/state and renders the KPI tiles and the 32-channel waveform
- * strips. Single-hue rendering (series-1) per the palette: channels are one
+/* Polls /api/state and renders the KPI tiles and one waveform strip per
+ * connected channel. Single-hue rendering (series-1) per the palette: channels are one
  * signal source, not distinct series. */
 "use strict";
 
 const POLL_INTERVAL_MS = 500;
-const FULL_SCALE_UV = 40;     // waveform amplitude mapped to a strip half-height
+const FULL_SCALE_UV = 40;     // minimum amplitude mapped to a strip half-height (larger signals auto-scale)
 
 function css(name) {
   return getComputedStyle(document.body).getPropertyValue(name).trim();
@@ -156,10 +156,14 @@ function drawWaveforms(waveforms, channelNames) {
     if (samples.length < 2) continue;
     const centerY = (channel + 0.5) * stripHeight;
     const stepX = plotWidth / (samples.length - 1);
+    // raw OpenBCI samples carry a large DC offset: draw each channel around its own mean and
+    // scale to its own swing so every electrode stays inside its strip
+    const mean = samples.reduce((sum, value) => sum + value, 0) / samples.length;
+    const swing = Math.max(FULL_SCALE_UV, ...samples.map((value) => Math.abs(value - mean)));
     ctx.beginPath();
     samples.forEach((value, index) => {
       const x = plotLeft + index * stepX;
-      const y = centerY - Math.max(-1, Math.min(1, value / FULL_SCALE_UV)) * stripHeight * 0.45;
+      const y = centerY - ((value - mean) / swing) * stripHeight * 0.45;
       if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
     ctx.stroke();

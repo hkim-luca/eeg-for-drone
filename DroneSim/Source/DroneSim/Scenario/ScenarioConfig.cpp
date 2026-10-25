@@ -1,31 +1,34 @@
 #include "ScenarioConfig.h"
-#include "Misc/Paths.h"
+#include "DroneSimPaths.h"
 #include "ScenarioLoader.h"
 #include "ScenarioLog.h"
 
 namespace
 {
-/** Fixed scenario file location; staged as a loose file when packaged so users can replace it
- *  post-deployment without repackaging */
+/** Scenario file in the user-editable config folder; edited without repackaging */
 auto ScenarioFilePath() -> FString
 {
-    return FPaths::ProjectContentDir() / TEXT("Scenarios") / TEXT("Scenario.json");
+    return DroneSimConfigDir() / TEXT("Scenario.json");
 }
 } // namespace
 
 auto FScenarioConfig::LoadConfiguredScenario(FLoadedScenario &OutScenario) -> bool
 {
-    OutScenario.FilePath = ScenarioFilePath();
-    OutScenario.Steps.Reset();
-
-    if (!FScenarioLoader::LoadFromFile(OutScenario.FilePath, OutScenario.Steps))
+    // read once per run; later recordings reuse the first result
+    static bool bLoaded = false;
+    static bool bValid = false;
+    static FLoadedScenario Cached;
+    if (!bLoaded)
     {
-        return false;
+        bLoaded = true;
+        Cached.FilePath = ScenarioFilePath();
+        bValid = FScenarioLoader::LoadFromFile(Cached.FilePath, Cached.Steps);
+        if (bValid && Cached.Steps.IsEmpty())
+        {
+            FScenarioLog::Error(FString::Printf(TEXT("Scenario file has no steps: %s"), *Cached.FilePath));
+            bValid = false;
+        }
     }
-    if (OutScenario.Steps.IsEmpty())
-    {
-        FScenarioLog::Error(FString::Printf(TEXT("Scenario file has no steps: %s"), *OutScenario.FilePath));
-        return false;
-    }
-    return true;
+    OutScenario = Cached;
+    return bValid;
 }

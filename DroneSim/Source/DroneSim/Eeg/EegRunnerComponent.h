@@ -110,8 +110,7 @@ class UEegRunnerComponent : public UActorComponent
     UPROPERTY(EditAnywhere, Config, Category = "EEG")
     FString OpenBciSerialPort;
 
-    /** Board-channel -> electrode map file; empty uses mappings/openbci_to_sim.json shipped
-     *  with the build (<ProjectDir>/mappings), falling back to the repo root in the editor */
+    /** Board-channel -> electrode map file; empty uses config/openbci_to_sim.json (DroneSimConfigDir) */
     UPROPERTY(EditAnywhere, Config, Category = "EEG")
     FString OpenBciMappingFile;
 

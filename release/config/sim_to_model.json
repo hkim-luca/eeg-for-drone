@@ -1,0 +1,41 @@
+{
+  "_comment": "전극명 → 모델 입력 인덱스. 학습된 순서로 적용. 안 쓰는 채널은 0으로 채움.",
+  "_channel_names": [
+    "Nz",
+    "Fp1 Fpz Fp2",
+    "AF9 AF7 AF5 AF3 AF1 AFz AF2 AF4 AF6 AF8 AF10",
+    "F9 F7 F5 F3 F1 Fz F2 F4 F6 F8 F10",
+    "FT9 FT7 FC5 FC3 FC1 FCz FC2 FC4 FC6 FT8 FT10",
+    "T9 T7 C5 C3 C1 Cz C2 C4 C6 T8 T10",
+    "TP9 TP7 CP5 CP3 CP1 CPz CP2 CP4 CP6 TP8 TP10",
+    "P9 P7 P5 P3 P1 Pz P2 P4 P6 P8 P10",
+    "PO9 PO7 PO5 PO3 PO1 POz PO2 PO4 PO6 PO8 PO10",
+    "O1 Oz O2",
+    "I1 Iz I2",
+    "A1 A2"
+  ],
+  "index": {
+    "Fz": 0,
+    "FC3": 1,
+    "FC1": 2,
+    "FCz": 3,
+    "FC2": 4,
+    "FC4": 5,
+    "C5": 6,
+    "C3": 7,
+    "C1": 8,
+    "Cz": 9,
+    "C2": 10,
+    "C4": 11,
+    "C6": 12,
+    "CP3": 13,
+    "CP1": 14,
+    "CPz": 15,
+    "CP2": 16,
+    "CP4": 17,
+    "P1": 18,
+    "Pz": 19,
+    "P2": 20,
+    "POz": 21
+  }
+}

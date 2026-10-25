@@ -14,14 +14,13 @@ struct FLoadedScenario
 };
 
 /**
- *  Loads the scenario JSON file that deployed builds always play:
- *  Content/Scenarios/Scenario.json. Users reconfigure the run by replacing
- *  the contents of that single file; no repackaging is needed since the
- *  Scenarios folder is staged as loose files.
+ *  Loads config/Scenario.json (see DroneSimConfigDir) on the first call of a run; later
+ *  calls return that result. Users reconfigure by editing the file and restarting; no
+ *  repackaging is needed.
  */
 class FScenarioConfig
 {
   public:
-    /** Loads Content/Scenarios/Scenario.json. Returns false if the file fails to load. */
+    /** Returns the scenario file's steps, read on first use. False if the file fails to load. */
     static auto LoadConfiguredScenario(FLoadedScenario &OutScenario) -> bool;
 };

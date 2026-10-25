@@ -21,7 +21,7 @@ _LENGTH_PREFIX: Final[struct.Struct] = struct.Struct("<I")
 MAX_MESSAGE_BYTES: Final[int] = 1 << 20
 
 #: Client message discriminators (ClientMessage.msg oneof in the proto reference).
-_CLIENT_TYPES: Final[frozenset[str]] = frozenset({"eeg", "ack", "physics"})
+_CLIENT_TYPES: Final[frozenset[str]] = frozenset({"eeg", "ack", "physics", "device"})
 
 
 def frame_payload(payload: bytes) -> bytes:
@@ -42,7 +42,7 @@ async def read_payload(reader: asyncio.StreamReader) -> bytes:
 def parse_client_message(payload: bytes) -> dict[str, Any]:
     """Decodes one DroneSim JSON message; raises ``ValueError`` on malformed input.
 
-    Returns the parsed object; ``message["type"]`` is one of ``eeg``/``ack``/``physics``.
+    Returns the parsed object; ``message["type"]`` is one of ``eeg``/``ack``/``physics``/``device``.
     """
     try:
         message = json.loads(payload.decode("utf-8"))

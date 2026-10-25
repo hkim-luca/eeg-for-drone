@@ -15,6 +15,12 @@ inline auto NowKst() -> FDateTime
     return FDateTime::UtcNow() + FTimespan::FromHours(9);
 }
 
+/** Current wall-clock time as Unix epoch seconds; the same clock BrainFlow stamps board samples with */
+inline auto NowUnixSeconds() -> double
+{
+    return (FDateTime::UtcNow() - FDateTime(1970, 1, 1)).GetTotalSeconds();
+}
+
 /** ISO 8601 with explicit KST offset: YYYY-MM-DDTHH:mm:ss.sss+09:00 (%s is the millisecond field) */
 inline auto ToIso8601Kst(const FDateTime &Kst) -> FString
 {

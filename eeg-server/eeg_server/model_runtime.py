@@ -81,6 +81,18 @@ def mi_probs_to_action(mi_probs: list[float]) -> tuple[str, float, dict[str, flo
     return action, probabilities[action], probabilities
 
 
+def channel_layout_mismatch(model_channels: list[object]) -> Optional[str]:
+    """Checks DroneSim's model-input layout (sim_to_model.json) against the model's channel count.
+
+    Returns None when DroneSim fills exactly ``config.CHANNEL_COUNT`` inputs, else why not; frames
+    of a mismatched layout must not be classified.
+    """
+    if len(model_channels) != config.CHANNEL_COUNT:
+        return (f"sim_to_model.json has {len(model_channels)} model channels, "
+                f"ai_model_config.json n_channels is {config.CHANNEL_COUNT}")
+    return None
+
+
 class Predictor(Protocol):
     """Callable that turns a ``[C, T]`` window into ``MODEL_N_CLASSES`` probabilities."""
 
@@ -105,7 +117,7 @@ class TorchModel:
 
 
 def _warn_config_mismatch(payload: dict) -> None:
-    """Logs where model_config.json disagrees with the metadata stored in the checkpoint."""
+    """Logs where ai_model_config.json disagrees with the metadata stored in the checkpoint."""
     import json
 
     expected = {
@@ -116,7 +128,7 @@ def _warn_config_mismatch(payload: dict) -> None:
     }
     for key, value in expected.items():
         if key in payload and payload[key] != value:
-            _LOGGER.warning("model_config.json %s=%s but checkpoint has %s", key, value, payload[key])
+            _LOGGER.warning("ai_model_config.json %s=%s but checkpoint has %s", key, value, payload[key])
 
     meta = payload.get("checkpoint_metadata")
     if isinstance(meta, str):
@@ -127,7 +139,7 @@ def _warn_config_mismatch(payload: dict) -> None:
     if isinstance(meta, dict):
         rate = meta.get("sampling_rate_hz")
         if rate is not None and rate != config.SAMPLE_RATE_HZ:
-            _LOGGER.warning("model_config.json sample_rate_hz=%s but checkpoint has %s", config.SAMPLE_RATE_HZ, rate)
+            _LOGGER.warning("ai_model_config.json sample_rate_hz=%s but checkpoint has %s", config.SAMPLE_RATE_HZ, rate)
         _LOGGER.info("checkpoint preprocessing: alignment=%s band=%s-%s Hz", meta.get("alignment"),
                      meta.get("fmin_hz"), meta.get("fmax_hz"))
 
@@ -152,7 +164,7 @@ def load_model(checkpoint_path=config.MODEL_CHECKPOINT) -> TorchModel:
         if not Path(checkpoint_path).exists():
             raise FileNotFoundError(checkpoint_path)
 
-        device = torch.device("cpu")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         net = model_cls(n_classes=config.MODEL_N_CLASSES, n_channels=config.CHANNEL_COUNT).to(device)
         payload = torch.load(checkpoint_path, map_location=device)
         if isinstance(payload, dict):
@@ -174,8 +186,9 @@ def load_model(checkpoint_path=config.MODEL_CHECKPOINT) -> TorchModel:
                 probs = torch.softmax(logits, dim=1).squeeze(0).tolist()
             return [float(p) for p in probs]
 
-        _LOGGER.info("AI model loaded: %s (%s, %d ch, %d samples)",
-                     Path(checkpoint_path).name, config.MODEL_CLASS, config.CHANNEL_COUNT, config.WINDOW_SAMPLES)
+        _LOGGER.info("AI model loaded: %s (%s, %d ch, %d samples) on %s",
+                     Path(checkpoint_path).name, config.MODEL_CLASS, config.CHANNEL_COUNT, config.WINDOW_SAMPLES,
+                     device)
         return TorchModel(predictor=predictor, available=True)
     except Exception as error:  # noqa: BLE001 - any failure must degrade gracefully
         _LOGGER.warning("AI model unavailable (%s); no actions will be sent until a model loads", error)

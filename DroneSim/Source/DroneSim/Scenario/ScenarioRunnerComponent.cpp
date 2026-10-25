@@ -1,4 +1,5 @@
 #include "ScenarioRunnerComponent.h"
+#include "DroneSimPaths.h"
 #include "DronePhysicsConfig.h"
 #include "EegRunnerComponent.h"
 #include "GameFramework/Actor.h"
@@ -44,6 +45,10 @@ void UScenarioRunnerComponent::Start(const TArray<FScenarioStep> &InSteps, float
 
     BeginRecordingFile(InFileName);
     BeginEegRecording(InFileName);
+    LabelTimeline.Reset();
+    PlaybackStartUnix = ScenarioTime::NowUnixSeconds();
+    PlaybackEndUnix = 0.0;
+    bWaitingForEeg = !EegRecordingFilePath.IsEmpty();
 
     // apply the simulated drone flight physics for the run
     const FDronePhysicsSettings &ConfigSettings = UDronePhysicsConfig::Get()->Settings;
@@ -75,6 +80,20 @@ void UScenarioRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
         return;
     }
 
+    // hover in place until OpenBCI streams; samples acquired before playback starts are dropped
+    if (bWaitingForEeg)
+    {
+        Physics.Tick(DeltaTime);
+        SampleEeg(DeltaTime);
+        if (!EegSource.IsStreaming())
+        {
+            return;
+        }
+        bWaitingForEeg = false;
+        PlaybackStartUnix = ScenarioTime::NowUnixSeconds();
+        FScenarioLog::Info(TEXT("OpenBCI streaming; playback starts"));
+    }
+
     Elapsed += DeltaTime;
 
     UpdatePlayback(DeltaTime);
@@ -88,6 +107,9 @@ void UScenarioRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
         SetComponentTickEnabled(false);
         Physics.End();
         FlushSamples();
+        // take what the board acquired up to the end, then drop anything later
+        PlaybackEndUnix = ScenarioTime::NowUnixSeconds();
+        SampleEeg(0.0f);
         FlushEeg();
         EegSource.Stop();
         FScenarioLog::Info(FString::Printf(TEXT("Playback finished: elapsed=%.2fs recording=%s eeg=%s (%lld samples)"),
@@ -108,6 +130,7 @@ void UScenarioRunnerComponent::BeginEegRecording(const FString &FileName)
     EegRecordingFilePath.Reset();
     PendingEegCsv.Reset();
     EegSampleCount = 0;
+    EegRawIndex = 0;
 
     // same OpenBCI settings (Game.ini + launch options) as EEG running mode
     const AActor *Owner = GetOwner();
@@ -123,7 +146,7 @@ void UScenarioRunnerComponent::BeginEegRecording(const FString &FileName)
 
     EegRecordingFilePath =
         FPaths::GetPath(RecordingFilePath) / (FPaths::GetBaseFilename(RecordingFilePath) + TEXT("_eeg.csv"));
-    FString Header = TEXT("board_time,elapsed,action");
+    FString Header = TEXT("time,elapsed,action");
     for (const FString &Name : EegSource.GetChannelNames())
     {
         Header += TEXT(",") + Name;
@@ -153,9 +176,50 @@ void UScenarioRunnerComponent::SampleEeg(float DeltaTime)
 
     // OutRaw layout: [board time, ch0..chN-1] per sample
     const int32 Stride = 1 + EegSource.GetChannelCount();
+    const double Rate = FMath::Max(EegSource.GetSampleRate(), 1);
     for (int32 Base = 0; Base + Stride <= EegRawScratch.Num(); Base += Stride)
     {
-        PendingEegCsv += FString::Printf(TEXT("%.6f,%.3f,%s"), EegRawScratch[Base], Elapsed, *LastActionLabel);
+        // BrainFlow stamps samples when a serial burst arrives (~0.5 s of samples at once), never
+        // before they were acquired; the board samples at a fixed rate, so the smallest
+        // (stamp - index / rate) is sample 0's time and every sample's time follows from its index
+        const double SinceFirst = static_cast<double>(EegRawIndex) / Rate;
+        const double Offset = EegRawScratch[Base] - SinceFirst;
+        if (EegRawIndex == 0 || Offset < EegClockOffset)
+        {
+            EegClockOffset = Offset;
+        }
+        ++EegRawIndex;
+        const double SampleTime = EegClockOffset + SinceFirst;
+
+        if (bWaitingForEeg || LabelTimeline.IsEmpty() || SampleTime < PlaybackStartUnix ||
+            (PlaybackEndUnix > 0.0 && SampleTime > PlaybackEndUnix))
+        {
+            continue;
+        }
+
+        // the board's first packet can be all zeros, which real EEG never is
+        bool bAllZero = true;
+        for (int32 Channel = 1; Channel < Stride && bAllZero; ++Channel)
+        {
+            bAllZero = EegRawScratch[Base + Channel] == 0.0;
+        }
+        if (bAllZero)
+        {
+            continue;
+        }
+
+        // label = the action active when this sample was acquired
+        const FString *Label = &LabelTimeline[0].Value;
+        for (int32 Index = LabelTimeline.Num() - 1; Index >= 0; --Index)
+        {
+            if (LabelTimeline[Index].Key <= SampleTime)
+            {
+                Label = &LabelTimeline[Index].Value;
+                break;
+            }
+        }
+
+        PendingEegCsv += FString::Printf(TEXT("%.6f,%.3f,%s"), SampleTime, SampleTime - PlaybackStartUnix, **Label);
         for (int32 Channel = 1; Channel < Stride; ++Channel)
         {
             PendingEegCsv += FString::Printf(TEXT(",%.3f"), EegRawScratch[Base + Channel]);
@@ -265,6 +329,7 @@ void UScenarioRunnerComponent::PublishActionLabel(const FString &Label)
     FlushEeg();
 
     LastActionLabel = Label;
+    LabelTimeline.Emplace(ScenarioTime::NowUnixSeconds(), Label);
     const APawn *Pawn = GetControlledPawn();
     FScenarioLog::Info(FString::Printf(TEXT("t=%.2fs action=%s pawn at %s"), Elapsed, *Label,
                                        Pawn != nullptr ? *Pawn->GetActorLocation().ToString() : TEXT("-")));
@@ -314,8 +379,7 @@ void UScenarioRunnerComponent::BeginRecordingFile(const FString &FileName)
     {
         CleanName = TEXT("recording");
     }
-    RecordingFilePath =
-        FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Recordings") / CleanName + TEXT(".csv"));
+    RecordingFilePath = DroneSimRecordingDir() / CleanName + TEXT(".csv");
 
     if (!IFileManager::Get().MakeDirectory(*FPaths::GetPath(RecordingFilePath), true))
     {

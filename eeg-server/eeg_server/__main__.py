@@ -18,8 +18,8 @@ def main() -> int:
     http_server = start_dashboard(state)
     tcp_server = EegTcpServer(state)
 
-    print(f"EEG dummy server ready - DroneSim link tcp://{config.TCP_HOST}:{config.TCP_PORT}, "
-          f"dashboard http://{config.HTTP_HOST}:{config.HTTP_PORT}/ (Ctrl+C to stop)")
+    print(f"EEG server ready - DroneSim link port {config.TCP_PORT}, "
+          f"dashboard {config.DASHBOARD_URL} (Ctrl+C to stop)")
     try:
         asyncio.run(tcp_server.serve_forever())
     except KeyboardInterrupt:

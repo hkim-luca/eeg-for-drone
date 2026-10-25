@@ -16,6 +16,7 @@ from typing import Any, Final
 
 from . import config
 from .inference import StreamClassifier
+from .model_runtime import channel_layout_mismatch
 from .metrics_log import MetricsCsvLogger, now_kst
 from .protocol import MAX_MESSAGE_BYTES, build_action_payload, now_ms, parse_client_message, read_payload
 from .state import ServerState
@@ -48,6 +49,8 @@ class EegTcpServer:
         # Fresh classifier per connection: a new sliding window, no leftover samples.
         classifier = StreamClassifier()
         _LOGGER.info("classifier: %s", "AI model" if classifier.using_model else "no model (no actions sent)")
+        # frames are classified only after DroneSim's channel layout matched the model's
+        layout_ok = False
 
         try:
             while True:
@@ -59,7 +62,8 @@ class EegTcpServer:
                     continue
                 kind = message["type"]
                 if kind == "eeg":
-                    await self._handle_frame(message, classifier, writer)
+                    if layout_ok:
+                        await self._handle_frame(message, classifier, writer)
                 elif kind == "physics":
                     # a NaN/Infinity double would make the /api/state JSON unparseable
                     # in the browser and freeze the dashboard; drop non-finite values
@@ -69,6 +73,14 @@ class EegTcpServer:
                     }
                     self._state.on_physics_settings(settings)
                     _LOGGER.info("physics settings updated: %d fields", len(settings))
+                elif kind == "device":
+                    mismatch = channel_layout_mismatch(message.get("model_channels", []))
+                    layout_ok = mismatch is None
+                    if mismatch is not None:
+                        _LOGGER.error("channel layout mismatch, frames ignored: %s", mismatch)
+                    self._state.on_device(message.get("channels", []), message.get("names", []))
+                    _LOGGER.info("device: %s of %s board channels feed the model",
+                                 len(message.get("channels", [])), message.get("board_channels", "?"))
                 else:  # ack
                     latency = self._state.metrics.on_ack(message["action_seq"], message["t_control_ms"])
                     if latency is not None:

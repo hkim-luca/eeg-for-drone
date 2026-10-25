@@ -83,13 +83,12 @@ auto SEegGraph::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedGeometr
     constexpr int32 PointStride = 4;
     constexpr int32 PointCount = EegConfig::GraphWindowSamples / PointStride;
 
-    // amplitude that maps to a strip half-height; the boosted rhythm peaks around ±40 uV
+    // minimum amplitude that maps to a strip half-height; larger signals auto-scale per channel
     constexpr float FullScaleMicrovolts = 40.0f;
 
     const float StripHeight = Size.Y / static_cast<float>(ChannelCount);
     const float GraphOriginX = FMath::Min(LabelColumnWidth, Size.X * 0.5f);
     const float GraphWidth = FMath::Max(Size.X - GraphOriginX, 1.0f);
-    const float AmplitudeScale = (StripHeight * 0.45f) / FullScaleMicrovolts;
     const float StepX = GraphWidth / static_cast<float>(PointCount - 1);
 
     const FSlateFontInfo LabelFont = FCoreStyle::GetDefaultFontStyle("Regular", LabelFontSize);
@@ -101,6 +100,21 @@ auto SEegGraph::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedGeometr
     {
         const float CenterY = (static_cast<float>(Channel) + 0.5f) * StripHeight;
         const int32 ChannelOffset = Channel * EegConfig::GraphWindowSamples;
+
+        // raw OpenBCI samples carry a large DC offset: draw each channel around its own mean and
+        // scale to its own swing so every electrode stays inside its strip
+        double Sum = 0.0;
+        for (int32 Index = 0; Index < EegConfig::GraphWindowSamples; ++Index)
+        {
+            Sum += Buffer[ChannelOffset + Index];
+        }
+        const float Mean = static_cast<float>(Sum / EegConfig::GraphWindowSamples);
+        float Swing = FullScaleMicrovolts;
+        for (int32 Index = 0; Index < EegConfig::GraphWindowSamples; ++Index)
+        {
+            Swing = FMath::Max(Swing, FMath::Abs(Buffer[ChannelOffset + Index] - Mean));
+        }
+        const float AmplitudeScale = (StripHeight * 0.45f) / Swing;
 
         const FString Label =
             ChannelNames.IsValidIndex(Channel) ? ChannelNames[Channel] : FString::Printf(TEXT("CH%d"), Channel);
@@ -114,7 +128,7 @@ auto SEegGraph::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedGeometr
         {
             // ring order: OldestIndex is the oldest sample, so time flows left to right
             const int32 SampleIndex = (OldestIndex + Point * PointStride) % EegConfig::GraphWindowSamples;
-            const float Value = Buffer[ChannelOffset + SampleIndex];
+            const float Value = Buffer[ChannelOffset + SampleIndex] - Mean;
             Points[Point] = FVector2f(GraphOriginX + static_cast<float>(Point) * StepX,
                                       FMath::Clamp(CenterY - Value * AmplitudeScale, CenterY - StripHeight * 0.5f,
                                                    CenterY + StripHeight * 0.5f));

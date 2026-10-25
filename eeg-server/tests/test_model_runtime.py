@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from eeg_server import config
 from eeg_server.inference import StreamClassifier
-from eeg_server.model_runtime import TorchModel, WindowBuffer, mi_probs_to_action
+from eeg_server.model_runtime import TorchModel, WindowBuffer, channel_layout_mismatch, mi_probs_to_action
 
 _FRAME_SAMPLES = config.SAMPLES_PER_FRAME
 
@@ -72,6 +72,12 @@ def test_stream_classifier_sends_nothing_without_model() -> None:
     assert classifier.classify(_frame(), config.CHANNEL_COUNT) is None
 
 
+def test_channel_layout_must_match_model_channel_count() -> None:
+    names = [f"E{index}" for index in range(config.CHANNEL_COUNT)]
+    assert channel_layout_mismatch(names) is None
+    assert channel_layout_mismatch(names[:-1]) is not None
+
+
 if __name__ == "__main__":
     test_window_buffer_fills_after_enough_frames()
     test_window_buffer_ignores_mismatched_channel_count()
@@ -79,4 +85,5 @@ if __name__ == "__main__":
     test_mi_probs_keep_only_movement_actions()
     test_stream_classifier_warms_up_then_uses_model()
     test_stream_classifier_sends_nothing_without_model()
+    test_channel_layout_must_match_model_channel_count()
     print("test_model_runtime: OK")

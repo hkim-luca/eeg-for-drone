@@ -12,7 +12,7 @@ DroneSim가 보내는 **22채널 EEG frame**(JSON)을 버퍼링해 **4초(1000�
 - 체크포인트: `checkpoints/loso_target_A01..A09_best.pth` (기본 A01, `config.MODEL_CHECKPOINT`)
 - 라이브 전처리: 윈도우별 채널 z-score(leak-free). 학습 평가의 RA/IM-TTA는 다수 trial이 필요해
   단일 라이브 윈도우에는 적용하지 않음.
-- 채널 순서는 `mappings/sim_to_model.json` / UE `EegTypes.h`와 일치해야 함.
+- 전극 → 모델 입력 인덱스는 `release/config/sim_to_model.json`에서 정함(UE가 이름 기준으로 배치). 서버는 채널 수(`n_channels`)만 확인.
 
 > PyTorch/numpy 또는 체크포인트가 없으면 서버는 그대로 뜨되 **동작을 보내지 않습니다**
 > (`inference.StreamClassifier`). torch 설치 시 자동으로 실모델 경로로 전환됩니다.
@@ -20,11 +20,12 @@ DroneSim가 보내는 **22채널 EEG frame**(JSON)을 버퍼링해 **4초(1000�
 ## 실행
 
 ```powershell
-pip install -r requirements.txt   # torch 포함(실모델용)
-python -m eeg_server
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements-server.txt
+.venv\Scripts\python -m eeg_server
 ```
 
-- DroneSim 링크: `tcp://127.0.0.1:9800`
+- DroneSim 링크: TCP 9800 (모든 인터페이스에서 수신, 원격 DroneSim도 접속 가능)
 - Dashboard: <http://127.0.0.1:8800/>
 - 시계열 로그: `logs/eeg_metrics_<시각>.csv` (첫 컬럼 KST)
 
@@ -34,13 +35,14 @@ python -m eeg_server
 python tests/test_protocol.py        # JSON wire round-trip
 python tests/test_model_runtime.py   # 윈도우 버퍼 + MI→동작 매핑
 python tests/test_metrics.py
+python tests/test_state.py           # 대시보드 채널 표시
 ```
 
 ## 프로토콜 (JSON)
 
 TCP + 4바이트 little-endian length prefix 뒤에 **UTF-8 JSON** 객체. 메시지는 `type`으로 구분:
 
-- 클라이언트→서버: `eeg`(프레임), `ack`(제어 확인), `physics`(물리 설정)
+- 클라이언트→서버: `eeg`(프레임), `ack`(제어 확인), `physics`(물리 설정), `device`(실제 연결 채널)
 - 서버→클라이언트: `action`(추론 결과 + 지표)
 
 필드 이름/타입은 `proto/eeg_link.proto`에 스키마 참고용으로 문서화돼 있습니다(와이어는 protobuf가
@@ -49,5 +51,5 @@ TCP + 4바이트 little-endian length prefix 뒤에 **UTF-8 JSON** 객체. 메�
 
 ## 채널 매핑
 
-OpenBCI(8ch) → 전극명 → 모델 인덱스(0..21, 나머지 zero-fill) 매핑은 저장소 루트 `mappings/`
+OpenBCI(8ch) → 전극명 → 모델 인덱스(0..21, 나머지 zero-fill) 매핑은 `release/config/`
 (`openbci_to_sim.json`, `sim_to_model.json`)에 있고 UE 취득측이 사용합니다.

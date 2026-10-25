@@ -86,7 +86,8 @@ class UScenarioRunnerComponent : public UActorComponent
     /** Opens OpenBCI with the EEG runner's settings and creates the EEG CSV */
     void BeginEegRecording(const FString &FileName);
 
-    /** Pulls new OpenBCI samples and buffers them as CSV rows under the current action label */
+    /** Pulls new OpenBCI samples and buffers them as CSV rows, each labeled by the action that
+     *  was active at its board timestamp (see LabelTimeline) */
     void SampleEeg(float DeltaTime);
 
     /** Appends buffered EEG rows to EegRecordingFilePath */
@@ -107,6 +108,24 @@ class UScenarioRunnerComponent : public UActorComponent
 
     /** EEG samples written this run, for the end-of-run log */
     int64 EegSampleCount = 0;
+
+    /** Unix time (s) each action label took effect, oldest first. Samples reach the game in
+     *  bursts after they were acquired, so they are labeled by their acquisition time against
+     *  this, not by the label current when they were pulled */
+    TArray<TPair<double, FString>> LabelTimeline;
+
+    /** Unix time (s) playback started / finished; EEG samples outside are dropped */
+    double PlaybackStartUnix = 0.0;
+    double PlaybackEndUnix = 0.0;
+
+    /** True while playback waits for OpenBCI to stream, so the first step is fully recorded */
+    bool bWaitingForEeg = false;
+
+    /** Samples pulled from the board this run, including dropped ones; drives the sample clock */
+    int64 EegRawIndex = 0;
+
+    /** Unix time (s) of sample 0: the smallest (BrainFlow stamp - index / rate) seen so far */
+    double EegClockOffset = 0.0;
 
     /** Playback phase: applying the current step's action, or settling before the next step */
     enum class EPhase : uint8

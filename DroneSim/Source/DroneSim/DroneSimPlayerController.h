@@ -112,7 +112,7 @@ class ADroneSimPlayerController : public APlayerController
     /** Creates the action-label HUD and adds it to the viewport; false if the class is unset */
     auto CreateActionHud(const FString &InitialLabel) -> bool;
 
-    /** Loads Content/Scenarios/Scenario.json and starts it when the Recording button is clicked */
+    /** Loads the scenario file (FScenarioConfig) and starts it when the Recording button is clicked */
     UFUNCTION()
     void HandleRecordingRequested();
 

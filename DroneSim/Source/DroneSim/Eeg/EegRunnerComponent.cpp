@@ -85,7 +85,7 @@ void UEegRunnerComponent::Start(float InMoveSpeed)
     }
 
     FScenarioLog::Info(FString::Printf(TEXT("EEG running mode start: server=%s:%d channels=%d rate=%dHz speed=%.0f"),
-                                       *Settings.ServerHost, Settings.ServerPort, EegConfig::ChannelCount,
+                                       *Settings.ServerHost, Settings.ServerPort, Source.GetModelChannelNames().Num(),
                                        EegConfig::SampleRateHz, InMoveSpeed));
 
     PublishActionLabel(ConnectingLabel);
@@ -198,7 +198,9 @@ void UEegRunnerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         }
         else
         {
-            // every (re)connect: show the active physics setup on the dashboard
+            // every (re)connect: show the active channels and physics setup on the dashboard
+            Client.SendPayload(EegProto::EncodeDeviceInfo(Source.GetModelIndices(), Source.GetChannelNames(),
+                                                           Source.GetModelChannelNames()));
             SendPhysicsSettings();
         }
     }

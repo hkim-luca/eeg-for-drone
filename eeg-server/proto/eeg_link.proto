@@ -56,12 +56,23 @@ message PhysicsSettings {
   int32 motor_count = 24;           // rotor count of the airframe model: 4 quad, 6 hexa, 8 octo
 }
 
+// Board channels that feed the model (DroneSim -> server), sent when the link comes up.
+// The other model-input channels of every EegFrame are zero-fill; the dashboard hides them.
+message DeviceInfo {
+  int32 board_channels = 1;        // acquired channel count (8 Cyton / 16 Cyton+Daisy)
+  repeated int32 channels = 2;     // model-input index of each mapped board channel
+  repeated string names = 3;       // electrode name of each entry in channels
+  repeated string model_channels = 4; // model-input order from sim_to_model.json; must equal
+                                      // ai_model_config.json channel_names or frames are ignored
+}
+
 // Everything DroneSim sends.
 message ClientMessage {
   oneof msg {
     EegFrame eeg = 1;
     ControlAck ack = 2;
     PhysicsSettings physics = 3;
+    DeviceInfo device = 4;
   }
 }
 

@@ -1,9 +1,12 @@
 #include "EegOpenBciSource.h"
+#include "DroneSimPaths.h"
 #include "ScenarioLog.h"
 
 #include "Dom/JsonObject.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeLock.h"
+#include "Tasks/Task.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 
@@ -22,29 +25,39 @@ namespace
 constexpr int32 CytonBoardId = 0;       // BoardIds::CYTON_BOARD
 constexpr int32 CytonDaisyBoardId = 2;  // BoardIds::CYTON_DAISY_BOARD
 
-/** Default board channel count when the mapping file does not state one (Cyton = 8) */
-constexpr int32 DefaultBoardChannels = 8;
-
 /** Seconds between (re)connect attempts */
 constexpr float RetryInterval = 2.0f;
 
-/** Picks the board id for a given channel count (16 -> Cyton+Daisy, otherwise Cyton) */
+/** Channel maps as loaded on the first Start(); the JSON files are read once per run */
+struct FChannelMapCache
+{
+    bool bLoaded = false;
+    bool bValid = false;
+    TArray<FString> ModelChannelNames;
+    TArray<FString> ChannelNames;
+    TArray<int32> OpenBciToModelIndex;
+    int32 BoardChannelCount = 0;
+};
+FChannelMapCache ChannelMapCache;
+
+/** Picks the board id for the mapped channel count (16 -> Cyton+Daisy, otherwise Cyton) */
 auto BoardIdForChannels(int32 ChannelCount) -> int32
 {
     return ChannelCount >= 16 ? CytonDaisyBoardId : CytonBoardId;
 }
 
-/** Resolves an electrode name to its model-input index via EegConfig::ChannelNames */
-auto ModelIndexForName(const FString &Name) -> int32
+/** Loads a JSON object file; null (with an error logged) if missing or malformed */
+auto LoadJsonFile(const FString &Path) -> TSharedPtr<FJsonObject>
 {
-    for (int32 Index = 0; Index < EegConfig::ChannelCount; ++Index)
+    FString Json;
+    TSharedPtr<FJsonObject> Root;
+    if (!FFileHelper::LoadFileToString(Json, *Path) ||
+        !FJsonSerializer::Deserialize(TJsonReaderFactory<TCHAR>::Create(Json), Root) || !Root.IsValid())
     {
-        if (Name.Equals(EegConfig::ChannelNames[Index], ESearchCase::IgnoreCase))
-        {
-            return Index;
-        }
+        FScenarioLog::Error(FString::Printf(TEXT("Channel map not found or invalid: %s"), *Path));
+        return nullptr;
     }
-    return INDEX_NONE;
+    return Root;
 }
 } // namespace
 
@@ -104,87 +117,158 @@ auto DetectFtdiSerialPort() -> FString
 } // namespace
 #endif
 
-void FEegOpenBciSource::BuildChannelMap(const FString &MappingFilePath)
+auto FEegOpenBciSource::BuildModelLayout() -> bool
 {
-    // packaged builds ship the map at <ProjectDir>/mappings; the editor reads the repo root copy
-    FString Path = MappingFilePath;
-    if (Path.IsEmpty())
+    // sim_to_model.json: electrode name -> model-input index, in the order the model was trained on
+    ModelChannelNames.Reset();
+    const FString Path = DroneSimConfigDir() / TEXT("sim_to_model.json");
+    const TSharedPtr<FJsonObject> Root = LoadJsonFile(Path);
+    const TSharedPtr<FJsonObject> *Index = nullptr;
+    if (!Root.IsValid() || !Root->TryGetObjectField(TEXT("index"), Index) || (*Index)->Values.IsEmpty())
     {
-        Path = FPaths::Combine(FPaths::ProjectDir(), TEXT("mappings/openbci_to_sim.json"));
-        if (!FPaths::FileExists(Path))
+        FScenarioLog::Error(FString::Printf(TEXT("%s needs an index"), *Path));
+        return false;
+    }
+
+    // the model-input count is the number of entries; their indices must cover 0..Count-1 once each
+    const int32 Count = (*Index)->Values.Num();
+    ModelChannelNames.SetNum(Count);
+    for (const TPair<FString, TSharedPtr<FJsonValue>> &Pair : (*Index)->Values)
+    {
+        int32 ModelIndex = INDEX_NONE;
+        if (!Pair.Value.IsValid() || !Pair.Value->TryGetNumber(ModelIndex) || !ModelChannelNames.IsValidIndex(ModelIndex) ||
+            !ModelChannelNames[ModelIndex].IsEmpty())
         {
-            Path = FPaths::Combine(FPaths::ProjectDir(), TEXT("../mappings/openbci_to_sim.json"));
+            FScenarioLog::Error(FString::Printf(TEXT("%s: '%s' has an invalid or duplicate index"), *Path, *Pair.Key));
+            ModelChannelNames.Reset();
+            return false;
+        }
+        ModelChannelNames[ModelIndex] = Pair.Key;
+    }
+    for (int32 ModelIndex = 0; ModelIndex < Count; ++ModelIndex)
+    {
+        if (ModelChannelNames[ModelIndex].IsEmpty())
+        {
+            FScenarioLog::Error(FString::Printf(TEXT("%s: no electrode for model index %d"), *Path, ModelIndex));
+            ModelChannelNames.Reset();
+            return false;
         }
     }
+    return true;
+}
 
-    // defaults if the file is missing/malformed: Cyton 8ch, generic names, no model mapping
-    BoardChannelCount = DefaultBoardChannels;
-    OpenBciToModelIndex.Init(INDEX_NONE, BoardChannelCount);
+auto FEegOpenBciSource::BuildChannelMap(const FString &MappingFilePath) -> bool
+{
+    // openbci_to_sim.json: board channel -> electrode name; the name then picks the model index
+    BoardChannelCount = 0;
+    OpenBciToModelIndex.Reset();
     ChannelNames.Reset();
-    for (int32 Index = 0; Index < BoardChannelCount; ++Index)
-    {
-        ChannelNames.Add(FString::Printf(TEXT("CH%d"), Index));
-    }
 
-    FString Json;
-    TSharedPtr<FJsonObject> Root;
-    if (!FFileHelper::LoadFileToString(Json, *Path) ||
-        !FJsonSerializer::Deserialize(TJsonReaderFactory<TCHAR>::Create(Json), Root) || !Root.IsValid())
-    {
-        FScenarioLog::Error(FString::Printf(TEXT("OpenBCI channel map not found/invalid: %s (defaults used)"), *Path));
-        return;
-    }
-
-    int32 ChannelCount = DefaultBoardChannels;
-    Root->TryGetNumberField(TEXT("channel_count"), ChannelCount);
-    BoardChannelCount = FMath::Max(ChannelCount, 1);
-
-    OpenBciToModelIndex.Init(INDEX_NONE, BoardChannelCount);
-    ChannelNames.Reset();
-    for (int32 Index = 0; Index < BoardChannelCount; ++Index)
-    {
-        ChannelNames.Add(FString::Printf(TEXT("CH%d"), Index));
-    }
-
+    const FString Path = MappingFilePath.IsEmpty() ? DroneSimConfigDir() / TEXT("openbci_to_sim.json") : MappingFilePath;
+    const TSharedPtr<FJsonObject> Root = LoadJsonFile(Path);
     const TSharedPtr<FJsonObject> *Mapping = nullptr;
-    if (!Root->TryGetObjectField(TEXT("mapping"), Mapping))
+    if (!Root.IsValid() || !Root->TryGetObjectField(TEXT("mapping"), Mapping) || (*Mapping)->Values.IsEmpty())
     {
-        FScenarioLog::Error(FString::Printf(TEXT("OpenBCI channel map has no 'mapping': %s"), *Path));
-        return;
+        FScenarioLog::Error(FString::Printf(TEXT("%s needs a mapping"), *Path));
+        return false;
+    }
+
+    // the board channel count is the number of entries; their keys must cover 0..Count-1 once each
+    BoardChannelCount = (*Mapping)->Values.Num();
+    OpenBciToModelIndex.Init(INDEX_NONE, BoardChannelCount);
+    ChannelNames.SetNum(BoardChannelCount);
+    TArray<bool> Seen;
+    Seen.Init(false, BoardChannelCount);
+    for (const TPair<FString, TSharedPtr<FJsonValue>> &Pair : (*Mapping)->Values)
+    {
+        const int32 BoardIndex = FCString::IsNumeric(*Pair.Key) ? FCString::Atoi(*Pair.Key) : INDEX_NONE;
+        if (!ChannelNames.IsValidIndex(BoardIndex) || Seen[BoardIndex] || !Pair.Value.IsValid())
+        {
+            FScenarioLog::Error(FString::Printf(TEXT("%s: board channel '%s' must be one of 0..%d, once each"), *Path,
+                                                *Pair.Key, BoardChannelCount - 1));
+            BoardChannelCount = 0;
+            OpenBciToModelIndex.Reset();
+            ChannelNames.Reset();
+            return false;
+        }
+        Seen[BoardIndex] = true;
+        ChannelNames[BoardIndex] = Pair.Value->AsString();
     }
 
     int32 Mapped = 0;
-    for (const TPair<FString, TSharedPtr<FJsonValue>> &Pair : (*Mapping)->Values)
+    for (int32 BoardIndex = 0; BoardIndex < BoardChannelCount; ++BoardIndex)
     {
-        const int32 BoardIndex = FCString::Atoi(*Pair.Key);
-        if (BoardIndex < 0 || BoardIndex >= BoardChannelCount || !Pair.Value.IsValid())
-        {
-            continue;
-        }
-        const FString Name = Pair.Value->AsString();
-        ChannelNames[BoardIndex] = Name;
-        const int32 ModelIndex = ModelIndexForName(Name);
+        const FString &Name = ChannelNames[BoardIndex];
+        const int32 ModelIndex =
+            Name.IsEmpty() ? INDEX_NONE
+                           : ModelChannelNames.IndexOfByPredicate(
+                                 [&Name](const FString &Model) { return Model.Equals(Name, ESearchCase::IgnoreCase); });
         OpenBciToModelIndex[BoardIndex] = ModelIndex;
         if (ModelIndex != INDEX_NONE)
         {
             ++Mapped;
         }
+        else
+        {
+            FScenarioLog::Info(FString::Printf(TEXT("Board channel %d ('%s') is not a model input; unused"),
+                                               BoardIndex, *Name));
+        }
     }
 
     FScenarioLog::Info(FString::Printf(TEXT("OpenBCI channel map: %d channels, %d placed into the %d-channel model"),
-                                       BoardChannelCount, Mapped, EegConfig::ChannelCount));
+                                       BoardChannelCount, Mapped, ModelChannelNames.Num()));
+    return true;
 }
+
+/** Written by the connect worker under Lock; read by the game thread once bDone is set */
+struct FEegOpenBciSource::FConnectAttempt
+{
+    FCriticalSection Lock;
+    bool bDone = false;
+    bool bCanceled = false;
+    int Result = 0;
+};
 
 void FEegOpenBciSource::Start(const FString &InSerialPort, const FString &MappingFilePath)
 {
-    BuildChannelMap(MappingFilePath);
+    CancelPendingConnect();
+    ReleaseBoard();
+
+    if (!ChannelMapCache.bLoaded)
+    {
+        ChannelMapCache.bLoaded = true;
+        ChannelMapCache.bValid = BuildModelLayout() && BuildChannelMap(MappingFilePath);
+        ChannelMapCache.ModelChannelNames = ModelChannelNames;
+        ChannelMapCache.ChannelNames = ChannelNames;
+        ChannelMapCache.OpenBciToModelIndex = OpenBciToModelIndex;
+        ChannelMapCache.BoardChannelCount = BoardChannelCount;
+    }
+    else
+    {
+        ModelChannelNames = ChannelMapCache.ModelChannelNames;
+        ChannelNames = ChannelMapCache.ChannelNames;
+        OpenBciToModelIndex = ChannelMapCache.OpenBciToModelIndex;
+        BoardChannelCount = ChannelMapCache.BoardChannelCount;
+    }
+
+    // no guessed layout: without both maps nothing is acquired or sent
+    if (!ChannelMapCache.bValid)
+    {
+        BoardChannelCount = 0;
+        GraphBuffer.Reset();
+        bWantConnection = false;
+        bStreaming = false;
+        FScenarioLog::Error(TEXT("OpenBCI not started: fix the channel maps in the config folder"));
+        return;
+    }
 
     GraphBuffer.Init(0.0f, BoardChannelCount * EegConfig::GraphWindowSamples);
     GraphWriteIndex = 0;
     NextSeq = 0;
     PendingFrame = FEegFrame();
     PendingFrame.Seq = NextSeq;
-    PendingFrame.Samples.Reserve(EegConfig::SamplesPerFrame * EegConfig::ChannelCount);
+    PendingFrame.Channels = ModelChannelNames.Num();
+    PendingFrame.Samples.Reserve(EegConfig::SamplesPerFrame * ModelChannelNames.Num());
     EegChannelRows.Reset();
 
     SerialPort = InSerialPort;
@@ -231,22 +315,51 @@ void FEegOpenBciSource::TryConnect()
              "\"ip_address_anc\":\"\",\"timeout\":0,\"serial_number\":\"\",\"file\":\"\",\"file_aux\":\"\","
              "\"file_anc\":\"\",\"master_board\":-100}"),
         *Port);
-    const FTCHARToUTF8 Json(*ParamsJson);
+    ConnectPort = Port;
 
-    int Result = prepare_session(BoardId, Json.Get());
-    if (Result == static_cast<int>(BrainFlowExitCodes::STATUS_OK))
-    {
-        bSessionPrepared = true;
-        Result = start_stream(StreamBufferSamples, "", BoardId, Json.Get());
-    }
+    // prepare_session/start_stream wait on the serial board for seconds; keep the game thread free
+    PendingConnect = MakeShared<FConnectAttempt, ESPMode::ThreadSafe>();
+    UE::Tasks::Launch(UE_SOURCE_LOCATION, [Attempt = PendingConnect, Board = BoardId, Params = ParamsJson]() {
+        const FTCHARToUTF8 Json(*Params);
+        constexpr int StatusOk = static_cast<int>(BrainFlowExitCodes::STATUS_OK);
+        int Result = prepare_session(Board, Json.Get());
+        const bool bPrepared = Result == StatusOk;
+        if (bPrepared)
+        {
+            Result = start_stream(StreamBufferSamples, "", Board, Json.Get());
+        }
+
+        FScopeLock ScopeLock(&Attempt->Lock);
+        if (bPrepared && (Result != StatusOk || Attempt->bCanceled))
+        {
+            // a failed start, or Stop() came first: no one else will release this session, and a
+            // leaked one makes the next attempt fail with ANOTHER_BOARD_IS_CREATED (code 16)
+            release_session(Board, Json.Get());
+        }
+        Attempt->Result = Result;
+        Attempt->bDone = true;
+    });
+#else
+    bWantConnection = false; // nothing to retry without the SDK
+    FScenarioLog::Error(TEXT("BrainFlow SDK not linked (WITH_BRAINFLOW=0): no EEG will be streamed. "
+                             "Place the SDK under DroneSim/ThirdParty/BrainFlow and rebuild."));
+#endif
+}
+
+void FEegOpenBciSource::FinishConnect()
+{
+#if WITH_BRAINFLOW
+    const int Result = PendingConnect->Result;
+    PendingConnect.Reset();
     if (Result != static_cast<int>(BrainFlowExitCodes::STATUS_OK))
     {
         FScenarioLog::Error(FString::Printf(TEXT("OpenBCI connect failed on %s (BrainFlow code %d); retrying in %.0fs"),
-                                            *Port, Result, RetryInterval));
-        ReleaseBoard();
+                                            *ConnectPort, Result, RetryInterval));
         bStreaming = false;
+        SecondsSinceRetry = 0.0f;
         return;
     }
+    bSessionPrepared = true;
 
     constexpr int32 MaxRows = 64;
     int Channels[MaxRows] = {};
@@ -263,15 +376,36 @@ void FEegOpenBciSource::TryConnect()
     int Rows = 0;
     get_num_rows(BoardId, static_cast<int>(BrainFlowPresets::DEFAULT_PRESET), &Rows);
     NumRows = Rows;
+    int Rate = 0;
+    get_sampling_rate(BoardId, static_cast<int>(BrainFlowPresets::DEFAULT_PRESET), &Rate);
+    SampleRateHz = Rate;
 
     bStreaming = true;
-    FScenarioLog::Info(FString::Printf(TEXT("OpenBCI streaming on %s (board %d): %d EEG channels @ %dHz"), *Port,
-                                       BoardId, EegChannelRows.Num(), EegConfig::SampleRateHz));
-#else
-    bWantConnection = false; // nothing to retry without the SDK
-    FScenarioLog::Error(TEXT("BrainFlow SDK not linked (WITH_BRAINFLOW=0): no EEG will be streamed. "
-                             "Place the SDK under DroneSim/ThirdParty/BrainFlow and rebuild."));
+    FScenarioLog::Info(FString::Printf(TEXT("OpenBCI streaming on %s (board %d): %d EEG channels @ %dHz"), *ConnectPort,
+                                       BoardId, EegChannelRows.Num(), SampleRateHz));
 #endif
+}
+
+void FEegOpenBciSource::CancelPendingConnect()
+{
+    if (!PendingConnect.IsValid())
+    {
+        return;
+    }
+    {
+        FScopeLock ScopeLock(&PendingConnect->Lock);
+        if (!PendingConnect->bDone)
+        {
+            PendingConnect->bCanceled = true; // the worker releases the session when it finishes
+        }
+#if WITH_BRAINFLOW
+        else if (PendingConnect->Result == static_cast<int>(BrainFlowExitCodes::STATUS_OK))
+        {
+            bSessionPrepared = true; // opened but never applied: ReleaseBoard() closes it
+        }
+#endif
+    }
+    PendingConnect.Reset();
 }
 
 void FEegOpenBciSource::ReleaseBoard()
@@ -292,6 +426,7 @@ void FEegOpenBciSource::Stop()
 {
     bWantConnection = false;
     bStreaming = false;
+    CancelPendingConnect();
     ReleaseBoard();
 }
 
@@ -304,6 +439,20 @@ void FEegOpenBciSource::Tick(float DeltaTime, TArray<FEegFrame> &OutFrames, TArr
 
     if (!bStreaming)
     {
+        if (PendingConnect.IsValid())
+        {
+            bool bDone = false;
+            {
+                FScopeLock ScopeLock(&PendingConnect->Lock);
+                bDone = PendingConnect->bDone;
+            }
+            if (bDone)
+            {
+                FinishConnect();
+            }
+            return;
+        }
+
         SecondsSinceRetry += DeltaTime;
         if (SecondsSinceRetry >= RetryInterval)
         {
@@ -340,7 +489,7 @@ void FEegOpenBciSource::Tick(float DeltaTime, TArray<FEegFrame> &OutFrames, TArr
     TArray<float> BoardSample;
     BoardSample.SetNumZeroed(BoardChannelCount);
     TArray<float> ModelSample;
-    ModelSample.SetNumZeroed(EegConfig::ChannelCount);
+    ModelSample.SetNumZeroed(ModelChannelNames.Num());
 
     for (int32 Sample = 0; Sample < SampleCount; ++Sample)
     {
@@ -392,18 +541,24 @@ void FEegOpenBciSource::AppendGraphSample(const TArray<float> &BoardSample)
 void FEegOpenBciSource::AppendFrameSample(const TArray<float> &ModelSample, TArray<FEegFrame> &OutFrames)
 {
     PendingFrame.Samples.Append(ModelSample);
-    if (PendingFrame.Samples.Num() >= EegConfig::SamplesPerFrame * EegConfig::ChannelCount)
+    if (PendingFrame.Samples.Num() >= EegConfig::SamplesPerFrame * ModelChannelNames.Num())
     {
         PendingFrame.Seq = NextSeq++;
         OutFrames.Add(MoveTemp(PendingFrame));
         PendingFrame = FEegFrame();
-        PendingFrame.Samples.Reserve(EegConfig::SamplesPerFrame * EegConfig::ChannelCount);
+        PendingFrame.Channels = ModelChannelNames.Num();
+        PendingFrame.Samples.Reserve(EegConfig::SamplesPerFrame * ModelChannelNames.Num());
     }
 }
 
 auto FEegOpenBciSource::IsStreaming() const -> bool
 {
     return bStreaming;
+}
+
+auto FEegOpenBciSource::GetSampleRate() const -> int32
+{
+    return SampleRateHz;
 }
 
 auto FEegOpenBciSource::GetChannelCount() const -> int32
@@ -414,6 +569,16 @@ auto FEegOpenBciSource::GetChannelCount() const -> int32
 auto FEegOpenBciSource::GetChannelNames() const -> const TArray<FString> &
 {
     return ChannelNames;
+}
+
+auto FEegOpenBciSource::GetModelIndices() const -> const TArray<int32> &
+{
+    return OpenBciToModelIndex;
+}
+
+auto FEegOpenBciSource::GetModelChannelNames() const -> const TArray<FString> &
+{
+    return ModelChannelNames;
 }
 
 auto FEegOpenBciSource::GetGraphBuffer() const -> const TArray<float> &

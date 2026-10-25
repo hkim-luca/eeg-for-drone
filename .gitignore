@@ -56,5 +56,10 @@ docs/
 # 다운로드 중 임시 파일
 *.part
 
-# 빌드 시 ../mappings에서 복사됨
-DroneSim/mappings/
+
+# 배포 패키지 출력 (release/ 원본 파일만 버전관리)
+/release/*
+!/release/*.ps1
+!/release/config/
+!/release/README.txt
+!/release/.gitattributes

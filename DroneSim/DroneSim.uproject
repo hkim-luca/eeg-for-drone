@@ -525,10 +525,7 @@
 		},
 		{
 			"Name": "ProceduralVegetationEditor",
-			"Enabled": true,
-			"TargetAllowList": [
-				"Editor"
-			]
+			"Enabled": true
 		}
 	],
 	"TargetPlatforms": [

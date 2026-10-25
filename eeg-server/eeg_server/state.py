@@ -41,6 +41,10 @@ class ServerState:
         #: Drone physics parameters last announced by DroneSim (proto field names);
         #: empty until the first PhysicsSettings message arrives.
         self._physics_settings: dict[str, object] = {}
+        #: Model-input channels the board feeds and their electrode names, from DroneSim's
+        #: device message; the dashboard draws only these. None until announced.
+        self._active_channels: list[int] = []
+        self._active_names: list[str] = []
 
     def set_connected(self, connected: bool) -> None:
         with self._lock:
@@ -87,6 +91,16 @@ class ServerState:
             ])
             self._latency_times.append(time_label)
 
+    def on_device(self, channels: list[object], names: list[object]) -> None:
+        """Stores which model-input channels carry real signal (DroneSim device message)."""
+        active = [int(index) for index in channels
+                  if isinstance(index, (int, float)) and 0 <= int(index) < config.CHANNEL_COUNT]
+        labels = [str(name) if name else f"ch{index}"
+                  for index, name in zip(active, list(names) + [""] * len(active))]
+        with self._lock:
+            self._active_channels = active
+            self._active_names = labels
+
     def on_physics_settings(self, settings: dict[str, object]) -> None:
         """Stores the physics parameters DroneSim announced, keyed by proto field name."""
         with self._lock:
@@ -100,8 +114,8 @@ class ServerState:
                 "inferred_action": self._inferred_action,
                 "confidence": round(self._confidence, 3),
                 "sample_rate_hz": config.SAMPLE_RATE_HZ // config.GRAPH_DOWNSAMPLE,
-                "channel_names": list(config.CHANNEL_NAMES),
-                "waveforms": [list(channel) for channel in self._waveforms],
+                "channel_names": list(self._active_names),
+                "waveforms": [list(self._waveforms[index]) for index in self._active_channels],
                 "prob_order": list(config.ACTION_PROB_ORDER),
                 "prob_history": [list(entry) for entry in self._prob_history],
                 "prob_times": list(self._prob_times),

@@ -68,5 +68,5 @@ def start_dashboard(state: ServerState) -> ThreadingHTTPServer:
     server = ThreadingHTTPServer((config.HTTP_HOST, config.HTTP_PORT), handler)
     thread = threading.Thread(target=server.serve_forever, name="dashboard-http", daemon=True)
     thread.start()
-    _LOGGER.info("dashboard on http://%s:%d/", config.HTTP_HOST, config.HTTP_PORT)
+    _LOGGER.info("dashboard on %s", config.DASHBOARD_URL)
     return server

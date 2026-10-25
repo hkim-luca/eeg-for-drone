@@ -3,25 +3,10 @@
 #include "CoreMinimal.h"
 #include "ScenarioTypes.h"
 
-/** Compile-time layout of the simulated EEG device and of the frames sent to the EEG server.
- *  The channel-group demo rule encoded here must match eeg-server/eeg_server/config.py. */
+/** Timing of the frames sent to the EEG server. The model-input channel layout is not fixed
+ *  here: it is read from config/sim_to_model.json (see FEegOpenBciSource). */
 namespace EegConfig
 {
-/** Number of channels sent to the EEG server - the AI model's input channel count.
- *  The frame DroneSim sends IS the model input (22 channels in model-row order); real
- *  OpenBCI acquisition fills these via mappings/*.json (overlap mapped, rest zero). */
-inline constexpr int32 ChannelCount = 22;
-
-/** BCI Competition IV-2a 22-electrode montage in the AI model's input-row order
- *  (model index 0..21), matching eeg-server/eeg_server/config.py CHANNEL_NAMES and
- *  mappings/sim_to_model.json. Keep all three in sync. */
-inline constexpr const TCHAR *ChannelNames[ChannelCount] = {
-    TEXT("Fz"),  TEXT("FC3"), TEXT("FC1"), TEXT("FCz"), TEXT("FC2"), TEXT("FC4"), TEXT("C5"),  TEXT("C3"),
-    TEXT("C1"),  TEXT("Cz"),  TEXT("C2"),  TEXT("C4"),  TEXT("C6"),  TEXT("CP3"), TEXT("CP1"), TEXT("CPz"),
-    TEXT("CP2"), TEXT("CP4"), TEXT("P1"),  TEXT("Pz"),  TEXT("P2"),  TEXT("POz"),
-};
-static_assert(UE_ARRAY_COUNT(ChannelNames) == ChannelCount, "ChannelNames must have one entry per channel");
-
 /** Samples generated per second per channel */
 inline constexpr int32 SampleRateHz = 250;
 
@@ -56,6 +41,9 @@ struct FEegFrame
 {
     /** Monotonic frame number, used by the server to detect dropped frames */
     int64 Seq = 0;
+
+    /** Model-input channel count of Samples (from config/sim_to_model.json) */
+    int32 Channels = 0;
 
     /** Sample-major data in microvolts: Samples[SampleIndex * ChannelCount + Channel] */
     TArray<float> Samples;

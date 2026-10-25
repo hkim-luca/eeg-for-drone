@@ -168,7 +168,7 @@ struct FDronePhysicsSettings
      *  TurnRateDegS). False: they strafe sideways instead. Mutually exclusive with
      *  bMouseYawControl, which would silently swallow the turn commands. */
     UPROPERTY(EditAnywhere, Category = "Control")
-    bool bTurnWithLeftRight = true;
+    bool bTurnWithLeftRight = false;
 
     /** Yaw rate commanded by turn-left/turn-right while bTurnWithLeftRight is on */
     UPROPERTY(EditAnywhere, Category = "Control", meta = (ClampMin = "5.0", ClampMax = "360.0", ForceUnits = "deg/s"))

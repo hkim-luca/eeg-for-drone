@@ -71,7 +71,7 @@ auto EncodeEegFrame(const FEegFrame &Frame, double SentMs) -> TArray<uint8>
     Object->SetNumberField(TEXT("seq"), static_cast<double>(Frame.Seq));
     Object->SetNumberField(TEXT("t_sent_ms"), SentMs);
     Object->SetNumberField(TEXT("rate"), EegConfig::SampleRateHz);
-    Object->SetNumberField(TEXT("channels"), EegConfig::ChannelCount);
+    Object->SetNumberField(TEXT("channels"), Frame.Channels);
     SetFloatArrayField(Object, TEXT("data"), Frame.Samples);
     return SerializeObject(Object);
 }
@@ -105,6 +105,36 @@ auto EncodePhysicsSettings(const FDronePhysicsSettings &Settings, const FString 
     Object->SetNumberField(TEXT("substep_hz"), Settings.SubstepHz);
     Object->SetStringField(TEXT("preset_name"), PresetName);
     Object->SetNumberField(TEXT("motor_count"), Settings.MotorCount);
+    return SerializeObject(Object);
+}
+
+auto EncodeDeviceInfo(TConstArrayView<int32> ModelIndices, TConstArrayView<FString> Names,
+                      TConstArrayView<FString> ModelChannelNames) -> TArray<uint8>
+{
+    TArray<TSharedPtr<FJsonValue>> Channels;
+    TArray<TSharedPtr<FJsonValue>> ChannelNames;
+    for (int32 Index = 0; Index < ModelIndices.Num(); ++Index)
+    {
+        if (ModelIndices[Index] == INDEX_NONE)
+        {
+            continue;
+        }
+        Channels.Add(MakeShared<FJsonValueNumber>(ModelIndices[Index]));
+        ChannelNames.Add(MakeShared<FJsonValueString>(Names.IsValidIndex(Index) ? Names[Index] : FString()));
+    }
+
+    const TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+    Object->SetStringField(TEXT("type"), TEXT("device"));
+    Object->SetNumberField(TEXT("board_channels"), ModelIndices.Num());
+    Object->SetArrayField(TEXT("channels"), Channels);
+    Object->SetArrayField(TEXT("names"), ChannelNames);
+
+    TArray<TSharedPtr<FJsonValue>> ModelChannels;
+    for (const FString &Name : ModelChannelNames)
+    {
+        ModelChannels.Add(MakeShared<FJsonValueString>(Name));
+    }
+    Object->SetArrayField(TEXT("model_channels"), ModelChannels);
     return SerializeObject(Object);
 }
 

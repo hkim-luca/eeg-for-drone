@@ -1,0 +1,5 @@
+# 추론 서버 실행에 필요한 패키지 (학습 환경은 requirements.txt)
+# torch는 CUDA 빌드, GPU가 없으면 CPU로 실행됨
+--extra-index-url https://download.pytorch.org/whl/cu126
+numpy==2.5.4
+torch==2.14.1+cu126
