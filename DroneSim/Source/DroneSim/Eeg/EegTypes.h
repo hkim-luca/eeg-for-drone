@@ -14,7 +14,7 @@ inline constexpr int32 ChannelCount = 22;
 
 /** BCI Competition IV-2a 22-electrode montage in the AI model's input-row order
  *  (model index 0..21), matching eeg-server/eeg_server/config.py CHANNEL_NAMES and
- *  mappings/channel_to_model_index.json. Keep all three in sync. */
+ *  mappings/sim_to_model.json. Keep all three in sync. */
 inline constexpr const TCHAR *ChannelNames[ChannelCount] = {
     TEXT("Fz"),  TEXT("FC3"), TEXT("FC1"), TEXT("FCz"), TEXT("FC2"), TEXT("FC4"), TEXT("C5"),  TEXT("C3"),
     TEXT("C1"),  TEXT("Cz"),  TEXT("C2"),  TEXT("C4"),  TEXT("C6"),  TEXT("CP3"), TEXT("CP1"), TEXT("CPz"),

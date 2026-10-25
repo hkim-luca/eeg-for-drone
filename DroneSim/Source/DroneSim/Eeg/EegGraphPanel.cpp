@@ -4,7 +4,7 @@
 #include "Styling/CoreStyle.h"
 #include "Widgets/SLeafWidget.h"
 
-/** Slate widget painting the 32 electrode strips from the simulator's graph ring buffer */
+/** Slate widget painting the acquired OpenBCI electrode strips from the source's graph ring buffer */
 class SEegGraph final : public SLeafWidget
 {
   public:
@@ -69,9 +69,12 @@ auto SEegGraph::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedGeometr
         return LayerId + 1;
     }
 
-    const TArray<float> &Buffer = Pinned->GetSignalSource().GetGraphBuffer();
-    const int32 OldestIndex = Pinned->GetSignalSource().GetGraphWriteIndex();
-    if (Buffer.Num() < EegConfig::ChannelCount * EegConfig::GraphWindowSamples)
+    const FEegOpenBciSource &SignalSource = Pinned->GetSignalSource();
+    const TArray<float> &Buffer = SignalSource.GetGraphBuffer();
+    const int32 OldestIndex = SignalSource.GetGraphWriteIndex();
+    const int32 ChannelCount = SignalSource.GetChannelCount();
+    const TArray<FString> &ChannelNames = SignalSource.GetChannelNames();
+    if (ChannelCount <= 0 || Buffer.Num() < ChannelCount * EegConfig::GraphWindowSamples)
     {
         return LayerId + 1;
     }
@@ -83,7 +86,7 @@ auto SEegGraph::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedGeometr
     // amplitude that maps to a strip half-height; the boosted rhythm peaks around ±40 uV
     constexpr float FullScaleMicrovolts = 40.0f;
 
-    const float StripHeight = Size.Y / static_cast<float>(EegConfig::ChannelCount);
+    const float StripHeight = Size.Y / static_cast<float>(ChannelCount);
     const float GraphOriginX = FMath::Min(LabelColumnWidth, Size.X * 0.5f);
     const float GraphWidth = FMath::Max(Size.X - GraphOriginX, 1.0f);
     const float AmplitudeScale = (StripHeight * 0.45f) / FullScaleMicrovolts;
@@ -94,17 +97,18 @@ auto SEegGraph::OnPaint(const FPaintArgs &Args, const FGeometry &AllottedGeometr
     TArray<FVector2f> Points;
     Points.SetNumUninitialized(PointCount);
 
-    for (int32 Channel = 0; Channel < EegConfig::ChannelCount; ++Channel)
+    for (int32 Channel = 0; Channel < ChannelCount; ++Channel)
     {
         const float CenterY = (static_cast<float>(Channel) + 0.5f) * StripHeight;
         const int32 ChannelOffset = Channel * EegConfig::GraphWindowSamples;
 
+        const FString Label =
+            ChannelNames.IsValidIndex(Channel) ? ChannelNames[Channel] : FString::Printf(TEXT("CH%d"), Channel);
         const FVector2f LabelPosition(2.0f, CenterY - static_cast<float>(LabelFontSize) * 0.5f);
         FSlateDrawElement::MakeText(OutDrawElements, LayerId + 1,
                                     AllottedGeometry.ToPaintGeometry(FVector2f(GraphOriginX, StripHeight),
                                                                      FSlateLayoutTransform(LabelPosition)),
-                                    FString(EegConfig::ChannelNames[Channel]), LabelFont, ESlateDrawEffect::None,
-                                    LabelColor);
+                                    Label, LabelFont, ESlateDrawEffect::None, LabelColor);
 
         for (int32 Point = 0; Point < PointCount; ++Point)
         {

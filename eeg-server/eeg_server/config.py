@@ -1,7 +1,7 @@
 """Shared constants of the EEG server; the wire/model values must match DroneSim.
 
 The AI model input is 22 channels over a 4 s window - see ``mappings/`` at the repo root
-(``channel_to_model_index.json``); ``CHANNEL_NAMES`` MUST match that file's order and
+(``sim_to_model.json``); ``CHANNEL_NAMES`` MUST match that file's order and
 ``EegConfig`` in ``DroneSim/Source/DroneSim/Eeg/EegTypes.h``. Change one side only together
 with the others.
 """
@@ -17,7 +17,7 @@ TCP_PORT: Final[int] = 9800
 HTTP_HOST: Final[str] = "127.0.0.1"
 HTTP_PORT: Final[int] = 8800
 
-# --- EEG layout (must match EegTypes.h and mappings/channel_to_model_index.json) ---
+# --- EEG layout (must match EegTypes.h and mappings/sim_to_model.json) ---
 CHANNEL_COUNT: Final[int] = 22
 SAMPLE_RATE_HZ: Final[int] = 250
 
@@ -27,7 +27,7 @@ SAMPLES_PER_FRAME: Final[int] = 25
 
 #: BCI Competition IV-2a 22-electrode montage, in the AI model's input-row order
 #: (model index 0..21). This is the order the UnifiedEEGNet checkpoints were trained on;
-#: keep it identical to mappings/channel_to_model_index.json.
+#: keep it identical to mappings/sim_to_model.json.
 CHANNEL_NAMES: Final[tuple[str, ...]] = (
     "Fz", "FC3", "FC1", "FCz", "FC2", "FC4", "C5", "C3",
     "C1", "Cz", "C2", "C4", "C6", "CP3", "CP1", "CPz",

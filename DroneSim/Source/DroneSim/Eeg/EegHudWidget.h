@@ -20,9 +20,10 @@ class UVerticalBox;
 /**
  *  Overlay shown while EEG running mode is active. The layout is designed in a Widget
  *  Blueprint using this class as its parent; bindable elements (all optional):
- *   - GraphPanel (EegGraphPanel), top-right: the 32-electrode signal graphs
+ *   - GraphPanel (EegGraphPanel), top-right: the acquired-channel EEG signal graphs
  *   - ProbabilityPanel (DroneProbabilityPanel), top-left: per-action inference probability bars
  *   - ConnectionText (TextBlock): EEG server link state (green CONNECTED / red RECONNECTING)
+ *   - DeviceText (TextBlock): OpenBCI device link state (green CONNECTED / red RECONNECTING)
  *   - AltitudeGauge, SpeedGauge (DroneTapeGauge; set Field to Altitude/Speed respectively)
  *   - AttitudeIndicator (DroneAttitudeIndicator): roll/pitch artificial horizon
  *   - HeadingTape (DroneCompassTape): true-north heading tape
@@ -68,6 +69,10 @@ class UEegHudWidget : public UUserWidget
     /** EEG server link state; designed in the Widget Blueprint */
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> ConnectionText;
+
+    /** OpenBCI device link state; designed in the Widget Blueprint */
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UTextBlock> DeviceText;
 
     /** Altitude tape gauge; designed in the Widget Blueprint with Field = Altitude */
     UPROPERTY(meta = (BindWidgetOptional))

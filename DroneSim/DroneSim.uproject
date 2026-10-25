@@ -118,18 +118,6 @@
 			]
 		},
 		{
-			"Name": "FabLauncher",
-			"Enabled": true,
-			"TargetAllowList": [
-				"Editor"
-			],
-			"SupportedTargetPlatforms": [
-				"Win64",
-				"Mac",
-				"Linux"
-			]
-		},
-		{
 			"Name": "Bridge",
 			"Enabled": true,
 			"TargetAllowList": [

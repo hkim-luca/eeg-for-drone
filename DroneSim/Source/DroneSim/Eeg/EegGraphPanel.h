@@ -9,10 +9,11 @@ class SEegGraph;
 class UEegRunnerComponent;
 
 /**
- *  UMG widget that draws the live waveforms of all 32 simulated EEG electrodes as
- *  stacked strips, newest sample on the right. Drop it into a Widget Blueprint (the
- *  EEG HUD places it in the top-right corner) and size it there; the drawing adapts
- *  to whatever geometry the layout gives it.
+ *  UMG widget that draws the live waveforms of the acquired OpenBCI electrodes as
+ *  stacked strips, newest sample on the right. The channel count and names come from the
+ *  signal source (fixed at connect from openbci_to_sim.json). Drop it into a Widget
+ *  Blueprint (the EEG HUD places it top-right) and size it there; drawing adapts to the
+ *  geometry the layout gives it.
  */
 UCLASS()
 class UEegGraphPanel : public UWidget

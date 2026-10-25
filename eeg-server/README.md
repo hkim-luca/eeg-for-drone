@@ -12,7 +12,7 @@ DroneSim가 보내는 **22채널 EEG frame**(JSON)을 버퍼링해 **4초(1000�
 - 체크포인트: `checkpoints/loso_target_A01..A09_best.pth` (기본 A01, `config.MODEL_CHECKPOINT`)
 - 라이브 전처리: 윈도우별 채널 z-score(leak-free). 학습 평가의 RA/IM-TTA는 다수 trial이 필요해
   단일 라이브 윈도우에는 적용하지 않음.
-- 채널 순서는 `mappings/channel_to_model_index.json` / UE `EegTypes.h`와 일치해야 함.
+- 채널 순서는 `mappings/sim_to_model.json` / UE `EegTypes.h`와 일치해야 함.
 
 > PyTorch/numpy 또는 체크포인트가 없으면 서버는 그대로 뜨되 **모델 없이 STOP**을 돌려줍니다
 > (`inference.StreamClassifier`). torch 설치 시 자동으로 실모델 경로로 전환됩니다.
@@ -51,4 +51,4 @@ TCP + 4바이트 little-endian length prefix 뒤에 **UTF-8 JSON** 객체. 메�
 ## 채널 매핑
 
 OpenBCI(8ch) → 전극명 → 모델 인덱스(0..21, 나머지 zero-fill) 매핑은 저장소 루트 `mappings/`
-(`openbci_to_channel.json`, `channel_to_model_index.json`)에 있고 UE 취득측이 사용합니다.
+(`openbci_to_sim.json`, `sim_to_model.json`)에 있고 UE 취득측이 사용합니다.

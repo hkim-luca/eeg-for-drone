@@ -49,6 +49,9 @@ class UEegRunnerComponent : public UActorComponent
     /** True while the EEG server connection is established */
     auto IsServerConnected() const -> bool;
 
+    /** True while the OpenBCI device is connected and streaming (false while reconnecting) */
+    auto IsDeviceConnected() const -> bool;
+
     /** OpenBCI signal source, exposed read-only for the electrode graph widget */
     auto GetSignalSource() const -> const FEegOpenBciSource &;
 
@@ -94,7 +97,7 @@ class UEegRunnerComponent : public UActorComponent
     FString OpenBciSerialPort = TEXT("COM3");
 
     /** Optional override for the board-channel -> electrode map; empty uses
-     *  <ProjectDir>/../mappings/openbci_to_channel.json */
+     *  <ProjectDir>/../mappings/openbci_to_sim.json */
     UPROPERTY(EditAnywhere, Category = "EEG")
     FString OpenBciMappingFile;
 

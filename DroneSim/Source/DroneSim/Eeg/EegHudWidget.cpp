@@ -105,14 +105,25 @@ void UEegHudWidget::NativeTick(const FGeometry &MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
 
-    // link state, colored so a broken connection is obvious; FEegClient reconnects on its own
-    if (const UEegRunnerComponent *PinnedRunner = Runner.Get(); PinnedRunner != nullptr && ConnectionText != nullptr)
+    // link states, colored so a broken connection is obvious; both reconnect on their own
+    const FSlateColor OkColor = FSlateColor(FLinearColor(0.03f, 0.45f, 0.14f, 0.8f));
+    const FSlateColor DownColor = FSlateColor(FLinearColor(0.7f, 0.1f, 0.05f, 0.8f));
+    if (const UEegRunnerComponent *PinnedRunner = Runner.Get(); PinnedRunner != nullptr)
     {
-        const bool bConnected = PinnedRunner->IsServerConnected();
-        ConnectionText->SetText(bConnected ? NSLOCTEXT("EegHud", "Connected", "EEG SERVER: CONNECTED")
-                                           : NSLOCTEXT("EegHud", "Reconnecting", "EEG SERVER: RECONNECTING..."));
-        ConnectionText->SetColorAndOpacity(bConnected ? FSlateColor(FLinearColor(0.03f, 0.45f, 0.14f, 0.8f))
-                                                      : FSlateColor(FLinearColor(0.7f, 0.1f, 0.05f, 0.8f)));
+        if (ConnectionText != nullptr)
+        {
+            const bool bConnected = PinnedRunner->IsServerConnected();
+            ConnectionText->SetText(bConnected ? NSLOCTEXT("EegHud", "Connected", "EEG SERVER: CONNECTED")
+                                               : NSLOCTEXT("EegHud", "Reconnecting", "EEG SERVER: RECONNECTING..."));
+            ConnectionText->SetColorAndOpacity(bConnected ? OkColor : DownColor);
+        }
+        if (DeviceText != nullptr)
+        {
+            const bool bDevice = PinnedRunner->IsDeviceConnected();
+            DeviceText->SetText(bDevice ? NSLOCTEXT("EegHud", "DeviceOn", "OPENBCI: CONNECTED")
+                                        : NSLOCTEXT("EegHud", "DeviceOff", "OPENBCI: RECONNECTING..."));
+            DeviceText->SetColorAndOpacity(bDevice ? OkColor : DownColor);
+        }
     }
 
     // OSD-style telemetry readout, bottom-left, mirroring what real drone pilots monitor:

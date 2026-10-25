@@ -90,6 +90,11 @@ auto UEegRunnerComponent::IsServerConnected() const -> bool
     return Client.IsConnected();
 }
 
+auto UEegRunnerComponent::IsDeviceConnected() const -> bool
+{
+    return Source.IsStreaming();
+}
+
 auto UEegRunnerComponent::GetSignalSource() const -> const FEegOpenBciSource &
 {
     return Source;
