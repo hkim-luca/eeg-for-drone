@@ -60,6 +60,7 @@ docs/
 # 배포 패키지 출력 (release/ 원본 파일만 버전관리)
 /release/*
 !/release/*.ps1
+!/release/start_server.py
 !/release/config/
 !/release/README.txt
 !/release/.gitattributes

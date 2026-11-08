@@ -12,6 +12,12 @@ EEG DroneSim
      Run_Scenario.ps1   시나리오 모드: 학습 데이터 수집 (Space 키로 기록 시작)
   VC++ 재배포 패키지가 없으면 처음 실행할 때 설치합니다 (관리자 권한 확인 창이 뜨면 허용)
 
+서버를 Ubuntu 24.04에서 실행할 때
+  - 처음 한 번: sudo apt install python3-venv
+  - 실행: python3 start_server.py   (처음 한 번은 PyTorch 설치로 약 3GB 다운로드)
+  - 방화벽(ufw)을 쓰면 포트 허용: sudo ufw allow 9800/tcp
+  - 대시보드를 다른 PC에서 볼 때는 8800/tcp도 허용
+
 서버를 다른 PC에서 실행할 때
   - DroneSim PC: Run_DroneSim.ps1, Run_Scenario.ps1 맨 위의 $Server를 서버 PC IP로 변경
                  (예: $Server = "192.168.0.10:9800")
