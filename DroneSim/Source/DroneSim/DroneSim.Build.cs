@@ -72,5 +72,13 @@ public class DroneSim : ModuleRules
 				RuntimeDependencies.Add("$(BinaryOutputDir)/" + Name, Dll);
 			}
 		}
+		else if (Target.Platform == UnrealTargetPlatform.Linux)
+		{
+			// libBoardController.so built on Ubuntu 24.04 (libstdc++ linked statically; only
+			// its C API is used, so no C++ types cross into UE's libc++)
+			string So = Path.Combine(Root, "Linux", "libBoardController.so");
+			PublicAdditionalLibraries.Add(So);
+			RuntimeDependencies.Add("$(BinaryOutputDir)/libBoardController.so", So);
+		}
 	}
 }

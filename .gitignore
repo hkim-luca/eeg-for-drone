@@ -61,6 +61,7 @@ docs/
 /release/*
 !/release/*.ps1
 !/release/start_server.py
+!/release/*.sh
 !/release/config/
 !/release/README.txt
 !/release/.gitattributes

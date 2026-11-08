@@ -107,6 +107,45 @@ auto DetectFtdiSerialPort() -> FString
 }
 } // namespace
 #include "Windows/HideWindowsPlatformTypes.h"
+#elif PLATFORM_LINUX
+#include <dirent.h>
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+namespace
+{
+/** Returns the tty device (e.g. "/dev/ttyUSB0") of the first FTDI serial device (OpenBCI Cyton
+ *  dongle), or empty. udev names FTDI adapters "usb-FTDI_<model>_<serial>-if00-port0" under
+ *  /dev/serial/by-id as symlinks to the tty node. */
+auto DetectFtdiSerialPort() -> FString
+{
+    const char *ByIdDir = "/dev/serial/by-id";
+    DIR *Dir = opendir(ByIdDir);
+    if (Dir == nullptr)
+    {
+        return FString(); // no USB serial device plugged in
+    }
+
+    FString Port;
+    while (const dirent *Entry = readdir(Dir))
+    {
+        if (strstr(Entry->d_name, "FTDI") == nullptr)
+        {
+            continue;
+        }
+        const FString Link = FString(UTF8_TO_TCHAR(ByIdDir)) / UTF8_TO_TCHAR(Entry->d_name);
+        char Resolved[PATH_MAX];
+        if (realpath(TCHAR_TO_UTF8(*Link), Resolved) != nullptr)
+        {
+            Port = UTF8_TO_TCHAR(Resolved);
+            break;
+        }
+    }
+
+    closedir(Dir);
+    return Port;
+}
+} // namespace
 #else
 namespace
 {

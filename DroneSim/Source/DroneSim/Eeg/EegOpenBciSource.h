@@ -22,7 +22,8 @@ class FEegOpenBciSource
 {
   public:
     /** Begins streaming intent: opens the board now and keeps retrying on failure/drop.
-     *  SerialPort is the Cyton dongle COM port (e.g. "COM3"); MappingFilePath overrides the
+     *  SerialPort is the Cyton dongle serial port (e.g. "COM3", "/dev/ttyUSB0"; empty or
+     *  "auto" detects the FTDI dongle); MappingFilePath overrides the
      *  default config/openbci_to_sim.json. */
     void Start(const FString &SerialPort, const FString &MappingFilePath);
 

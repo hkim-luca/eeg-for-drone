@@ -26,7 +26,7 @@ python -m venv .venv
 ```
 
 - DroneSim 링크: TCP 9800 (모든 인터페이스에서 수신, 원격 DroneSim도 접속 가능)
-- Dashboard: <http://127.0.0.1:8800/>
+- Dashboard: `http://<서버 IP>:8800/`
 - 시계열 로그: `logs/eeg_metrics_<시각>.csv` (첫 컬럼 KST)
 
 ## 테스트

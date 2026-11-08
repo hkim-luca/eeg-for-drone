@@ -6,3 +6,4 @@ DroneSim/Content/PN_GrassLibrary/Materials/** filter=lfs diff=lfs merge=lfs -tex
 DroneSim/Content/PN_GrassLibrary/Meshes/** filter=lfs diff=lfs merge=lfs -text
 DroneSim/Content/PN_GrassLibrary/Textures/** filter=lfs diff=lfs merge=lfs -text
 DroneSim/Content/WaterMaterials/Textures/T_Water_Normal_Subtle.uasset filter=lfs diff=lfs merge=lfs -text
+*.sh text eol=lf

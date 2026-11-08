@@ -15,8 +15,7 @@ EEG DroneSim
 서버를 Ubuntu 24.04에서 실행할 때
   - 처음 한 번: sudo apt install python3-venv
   - 실행: python3 start_server.py   (처음 한 번은 PyTorch 설치로 약 3GB 다운로드)
-  - 방화벽(ufw)을 쓰면 포트 허용: sudo ufw allow 9800/tcp
-  - 대시보드를 다른 PC에서 볼 때는 8800/tcp도 허용
+  - 방화벽(ufw)을 쓰면 포트 허용: sudo ufw allow 9800,8800/tcp
 
 서버를 다른 PC에서 실행할 때
   - DroneSim PC: Run_DroneSim.ps1, Run_Scenario.ps1 맨 위의 $Server를 서버 PC IP로 변경
@@ -30,4 +29,4 @@ EEG DroneSim
 기록
   - 시나리오 모드: Recordings 폴더 (<이름>.csv 위치, <이름>_eeg.csv EEG 원신호)
   - 서버 지표 로그: eeg-server\logs
-  - 서버 대시보드: 서버 PC에서 http://127.0.0.1:8800/
+  - 서버 대시보드: http://<서버 IP>:8800/

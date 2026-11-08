@@ -14,3 +14,14 @@ xcopy /E /I /Y brainflow\installed\inc inc
 xcopy /I /Y brainflow\installed\lib\*.lib Win64
 xcopy /I /Y brainflow\installed\lib\*.dll Win64
 ```
+
+Linux (Ubuntu 24.04): 위처럼 clone 후
+
+```
+sudo apt install g++ make cmake
+cd brainflow
+cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DBUILD_SYNCHRONI_SDK=OFF -DBRAINFLOW_COPY_TO_PACKAGE_DIRS=OFF -DCMAKE_SHARED_LINKER_FLAGS="-static-libstdc++ -static-libgcc"
+cmake --build build-linux --target BoardController -j
+cd ..
+mkdir -p Linux && cp brainflow/compiled/libBoardController.so Linux/
+```
