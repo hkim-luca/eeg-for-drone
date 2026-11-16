@@ -25,7 +25,7 @@ public class DroneSim : ModuleRules
 			"Networking"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+		PrivateDependencyModuleNames.AddRange(new string[] { "RHI" });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"DroneSim",

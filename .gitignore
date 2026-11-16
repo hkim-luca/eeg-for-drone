@@ -4,6 +4,7 @@ Intermediate/
 Saved/
 DerivedDataCache/
 DroneSim-Release/
+compile_commands.json
 
 # Visual Studio
 .vs/
